@@ -1,0 +1,15 @@
+# Environment Variables — ห้าม commit เด็ดขาด
+.env
+.env.local
+.env.production
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
