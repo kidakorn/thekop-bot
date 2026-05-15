@@ -1,15 +1,16 @@
 @import "tailwindcss";
+@plugin "daisyui";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --color-primary-red: #D90429;
+  --color-secondary-red: #EF233C;
+  --color-dark-bg: #2B2D42;
+  --color-text-main: #2B2D42;
 }
 
 @media (prefers-color-scheme: dark) {
