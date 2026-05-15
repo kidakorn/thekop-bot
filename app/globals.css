@@ -1,27 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
-@plugin "daisyui";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@plugin "daisyui" {
+  themes: light;
 }
 
+/* ── Project color tokens ── */
 @theme {
   --color-primary-red: #D90429;
   --color-secondary-red: #EF233C;
   --color-dark-bg: #2B2D42;
   --color-text-main: #2B2D42;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── DaisyUI theme override ── */
+:root {
+  --p: #D90429;
+  --pf: #B0031F;
+  --pc: #ffffff;
+  --s: #EF233C;
+  --sf: #C91B32;
+  --sc: #ffffff;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: #f5f5f7;
+  color: #2B2D42;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
