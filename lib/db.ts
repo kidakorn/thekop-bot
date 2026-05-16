@@ -7,14 +7,12 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL
-
-  if (!connectionString) {
+  if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set in environment variables')
   }
 
   const pool = new Pool({
-    connectionString,
+    connectionString: process.env.DATABASE_URL,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

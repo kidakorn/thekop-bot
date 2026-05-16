@@ -22,9 +22,11 @@ export default function DashboardPage() {
     refreshInterval: 30000,
   })
 
-  const { data: posts, isLoading: postsLoading, mutate: mutatePosts } = useSWR<Post[]>('/api/posts', fetcher, {
+  const { data: postsData, isLoading: postsLoading, mutate: mutatePosts } = useSWR<Post[]>('/api/posts', fetcher, {
     refreshInterval: 30000,
   })
+
+  const posts = Array.isArray(postsData) ? postsData : []
 
   function handleRefresh() {
     mutateStats()
@@ -65,10 +67,10 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatsCard title="Total Posts"  value={stats?.total   ?? 0} icon={BarChart2}    variant="info"    />
-          <StatsCard title="Posted"       value={stats?.posted  ?? 0} icon={CheckCircle}  variant="success" />
-          <StatsCard title="Pending"      value={stats?.pending ?? 0} icon={Clock}         variant="warning" />
-          <StatsCard title="Failed"       value={stats?.failed  ?? 0} icon={XCircle}      variant="error"   />
+          <StatsCard title="Total Posts" value={stats?.total ?? 0} icon={BarChart2} variant="info" />
+          <StatsCard title="Posted" value={stats?.posted ?? 0} icon={CheckCircle} variant="success" />
+          <StatsCard title="Pending" value={stats?.pending ?? 0} icon={Clock} variant="warning" />
+          <StatsCard title="Failed" value={stats?.failed ?? 0} icon={XCircle} variant="error" />
         </div>
       )}
 
@@ -83,7 +85,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <PostHistory posts={posts ?? []} />
+            <PostHistory posts={posts} />
           )}
         </div>
       </div>
