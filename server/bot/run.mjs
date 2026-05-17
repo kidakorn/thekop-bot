@@ -9,10 +9,11 @@ import { GoogleAuth } from 'google-auth-library'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { unlinkSync } from 'fs'
-import { tmpdir } from 'os'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
+import textToSpeech from '@google-cloud/text-to-speech'
+import { execSync } from 'child_process'
+import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
 
 const { Pool } = pg
 
@@ -28,40 +29,12 @@ const auth = new GoogleAuth({ keyFile: keyPath, scopes: ['https://www.googleapis
 
 const RSS_FEEDS = [
 	'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
-	'https://www.liverpoolecho.co.uk/rss/sport/football/liverpool-fc.xml',
+	'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss',
+	'https://www.thisisanfield.com/feed/',
+	'https://www.empireofthekop.com/feed/',
 ]
 
-// Scrape news from official Liverpool FC website
-async function scrapeOfficialSite() {
-	try {
-		const response = await axios.get('https://www.liverpoolfc.com/news', {
-			timeout: 10000,
-			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-		})
 
-		const $ = cheerio.load(response.data)
-		const items = []
-
-		// ดึง article links และ titles
-		$('a[href*="/news/"]').each((_, el) => {
-			const title = $(el).text().trim()
-			const href = $(el).attr('href')
-			const link = href.startsWith('http') ? href : `https://www.liverpoolfc.com${href}`
-
-			if (title && title.length > 20 && link.includes('/news/')) {
-				items.push({ title, link, description: title })
-			}
-		})
-
-		// Remove duplicates
-		const unique = [...new Map(items.map(i => [i.link, i])).values()]
-		console.log(`✅ Scraped ${unique.length} items from liverpoolfc.com`)
-		return unique.slice(0, 10)
-	} catch (err) {
-		console.warn(`⚠️ Scrape failed: ${err.message}`)
-		return []
-	}
-}
 
 // Parse RSS XML to array
 function parseRSS(xmlText) {
@@ -88,13 +61,9 @@ function parseRSS(xmlText) {
 	return items
 }
 
-// Fetch Liverpool news from all RSS feeds — collect all items
+// Fetch Liverpool news from all RSS feeds
 async function fetchNews() {
 	const allItems = []
-
-	// Scrape official site
-	const officialNews = await scrapeOfficialSite()
-	allItems.push(...officialNews)
 
 	// Fetch RSS feeds
 	for (const feedUrl of RSS_FEEDS) {
@@ -113,7 +82,18 @@ async function fetchNews() {
 		}
 	}
 
-	return allItems
+	// Filter out Women's, Academy, and Youth team news to keep only Men's First Team
+	const excludeKeywords = [
+		'women', 'ladies', 'u21', 'u18', 'u-21', 'u-18',
+		'academy', 'youth', 'lfc women', 'female', 'wsl',
+		'bonner', 'ejupi', 'defined moments'
+	]
+	const firstTeamNews = allItems.filter(item => {
+		const text = (item.title + ' ' + item.link).toLowerCase()
+		return !excludeKeywords.some(kw => text.includes(kw))
+	})
+
+	return firstTeamNews
 }
 
 // Summarize news in Thai using Gemini
@@ -196,7 +176,20 @@ async function generateImage(title, thaiSummary) {
 			data: {
 				contents: [{
 					role: 'user',
-					parts: [{ text: `Create a short English image prompt (max 50 words) for a Liverpool FC news article. Make it dramatic football photography style. DO NOT include any scores, numbers, text, or scoreboards in the image. Focus only on player emotions, crowd atmosphere, and stadium. News: ${title}. Output ONLY the prompt, no explanation.` }]
+					parts: [{
+						text: `You are a professional sports photographer AI. Create a cinematic English image prompt (max 60 words) for Liverpool FC MEN'S FIRST TEAM news only.
+						Rules:
+						- IDENTIFY PLAYERS: Extract specific Liverpool players/manager from the news topic. If none are mentioned, default to key figures (e.g., Mohamed Salah, Virgil van Dijk, Florian Wirtz, Alexander Isak). EXPLICITLY include their full names in your image prompt.
+						- STRICT SUBJECT RULE: Focus on the SINGLE primary Liverpool player mentioned. If the news is about Mohamed Salah, draw ONLY Mohamed Salah alone. DO NOT draw multiple players unless explicitly required. DO NOT draw non-Liverpool personnel (like Xabi Alonso) in a Liverpool kit. If no specific player is mentioned, default to drawing one generic 25/26 squad player.
+						- Squad Reference for 25/26: Manager Arne Slot, Alisson, Mamardashvili, Van Dijk, Konate, Gomez, Robertson, Frimpong, Kerkez, Bradley, Mac Allister, Szoboszlai, Wirtz, Gravenberch, Jones, Endo, Salah, Isak, Gakpo, Chiesa, Ekitike.
+						- STRICT KIT RULE: Players MUST wear a BRIGHT RED ADIDAS football jersey with 3 distinct white stripes on the shoulders. The jersey MUST have the Adidas logo on the right chest, and the 'Standard Chartered' sponsor logo in the center. 
+						- ABSOLUTELY NO NAMES OR NUMBERS: DO NOT show the back of the jersey. Front or side profile ONLY. Do not generate any names or large numbers on the shirt (to avoid spelling errors).
+						- Modern Anfield stadium, capacity 61,000.
+						- Photorealistic DSLR sports photography, dramatic lighting, highly detailed.
+						- NO floating text, scoreboards, or watermarks.
+						- Emotion and action matching: ${title}
+
+						Output ONLY the prompt.` }]
 				}],
 				generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
 			}
@@ -230,6 +223,303 @@ async function generateImage(title, thaiSummary) {
 	}
 }
 
+// Generate video script in Thai using Gemini
+async function generateVideoScript(title, thaiSummary) {
+	try {
+		const client = await auth.getClient()
+		const projectId = await auth.getProjectId()
+		const location = 'us-central1'
+		const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
+
+		const response = await client.request({
+			url,
+			method: 'POST',
+			data: {
+				contents: [{
+					role: 'user',
+					parts: [{
+						text: `สร้าง script สำหรับวิดีโอข่าวฟุตบอลลิเวอร์พูล ความยาว 20-25 วินาที
+
+หัวข้อ: ${title}
+สรุป: ${thaiSummary}
+
+format ที่ต้องการ (JSON เท่านั้น ไม่มีคำอธิบาย):
+{
+  "videoPrompt": "A short English cinematic B-roll description matching the news topic. STRICT RULES: NO human faces, NO specific players, ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests, NO scarves with writing. E.g. if press conference: 'Cinematic close up of microphones on a red table'. If transfer rumor: 'A red pen signing a contract'. If match: 'Cinematic wide shot of Anfield stadium at night'. Must be atmospheric, photorealistic.",
+  "subtitles": [
+    { "start": 0, "end": 5, "text": "ข้อความภาษาไทย บรรทัดที่ 1" },
+    { "start": 5, "end": 10, "text": "ข้อความภาษาไทย บรรทัดที่ 2" },
+    { "start": 10, "end": 15, "text": "ข้อความภาษาไทย บรรทัดที่ 3" },
+    { "start": 15, "end": 20, "text": "ข้อความภาษาไทย บรรทัดที่ 4" }
+  ]
+}` }]
+				}],
+				generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+			}
+		})
+
+		const raw = response.data.candidates[0].content.parts[0].text.trim()
+		const clean = raw.replace(/```json|```/g, '').trim()
+		return JSON.parse(clean)
+	} catch (err) {
+		console.warn(`⚠️ Script generation failed: ${err.message}`)
+		return null
+	}
+}
+
+// Generate video using Veo via Vertex AI
+async function generateVideo(videoPrompt) {
+	try {
+		const { GoogleGenAI } = await import('@google/genai')
+		const client = new GoogleGenAI({ vertexai: true, project: 'devakorn-creator-ai', location: 'us-central1' })
+
+		console.log('🎬 Submitting video job to Veo...')
+		let operation = await client.models.generateVideos({
+			model: 'veo-2.0-generate-001',
+			prompt: videoPrompt,
+			config: { aspectRatio: '9:16', durationSeconds: 8 },
+		})
+
+		console.log('⏳ Waiting for Veo to render...')
+		while (!operation.done) {
+			await new Promise(resolve => setTimeout(resolve, 15000))
+			operation = await client.operations.get({ operation })
+			console.log('⏳ Still rendering...')
+		}
+
+		const videoData = operation.response?.generatedVideos?.[0]?.video
+		if (!videoData) throw new Error('No video data received')
+
+		if (videoData.videoBytes) {
+			return typeof videoData.videoBytes === 'string'
+				? videoData.videoBytes
+				: Buffer.from(videoData.videoBytes).toString('base64')
+		}
+
+		throw new Error('No video bytes in response')
+	} catch (err) {
+		console.warn(`⚠️ Veo generation failed: ${err.message}`)
+		return null
+	}
+}
+
+// Generate Thai voiceover using Google Cloud TTS
+async function generateVoiceover(text) {
+	try {
+		console.log('🗣️ Generating voiceover...')
+		const client = new textToSpeech.TextToSpeechClient({ keyFilename: keyPath })
+		const request = {
+			input: { text },
+			voice: { languageCode: 'th-TH', name: 'th-TH-Chirp3-HD-Puck' }, // High-quality Male voice
+			audioConfig: { audioEncoding: 'MP3', speakingRate: 1.15 },
+		}
+		const [response] = await client.synthesizeSpeech(request)
+		return response.audioContent.toString('base64')
+	} catch (err) {
+		console.warn(`⚠️ Voiceover generation failed: ${err.message}`)
+		return null
+	}
+}
+
+// Burn Thai subtitles and mix voiceover into video using ffmpeg
+async function burnSubtitlesAndAudio(videoBase64, subtitles, audioBase64) {
+	try {
+		const tmpDir = path.join(process.cwd(), 'tmp')
+		if (!existsSync(tmpDir)) mkdirSync(tmpDir)
+
+		const inputPath = path.join(tmpDir, `input_${Date.now()}.mp4`)
+		const srtPath = path.join(tmpDir, `subs_${Date.now()}.srt`)
+		const audioPath = path.join(tmpDir, `audio_${Date.now()}.mp3`)
+		const outputPath = path.join(tmpDir, `output_${Date.now()}.mp4`)
+
+		// Write video file
+		writeFileSync(inputPath, Buffer.from(videoBase64, 'base64'))
+		
+		// Write audio file if exists
+		if (audioBase64) writeFileSync(audioPath, Buffer.from(audioBase64, 'base64'))
+
+		// Write SRT subtitle file
+		const srtContent = subtitles.map((sub, i) => {
+			const toTime = (s) => {
+				const h = Math.floor(s / 3600).toString().padStart(2, '0')
+				const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0')
+				const sec = (s % 60).toString().padStart(2, '0')
+				return `${h}:${m}:${sec},000`
+			}
+			return `${i + 1}\n${toTime(sub.start)} --> ${toTime(sub.end)}\n${sub.text}\n`
+		}).join('\n')
+
+		writeFileSync(srtPath, srtContent, 'utf8')
+
+		// Execute ffmpeg with or without audio merging
+		const bInputPath = path.basename(inputPath)
+		const bSrtPath = path.basename(srtPath)
+		const bAudioPath = path.basename(audioPath)
+		const bOutputPath = path.basename(outputPath)
+
+		let ffmpegCmd = ''
+		if (audioBase64) {
+			ffmpegCmd = `ffmpeg -stream_loop -1 -i "${bInputPath}" -i "${bAudioPath}" -map 0:v:0 -map 1:a:0 -c:v libx264 -c:a aac -shortest "${bOutputPath}" -y`
+		} else {
+			ffmpegCmd = `ffmpeg -i "${bInputPath}" -c:a copy "${bOutputPath}" -y`
+		}
+
+		execSync(ffmpegCmd, { cwd: tmpDir, stdio: 'pipe' })
+
+		const outputBase64 = readFileSync(outputPath).toString('base64')
+
+		// Cleanup temp files
+		try { unlinkSync(inputPath) } catch { }
+		try { unlinkSync(srtPath) } catch { }
+		try { unlinkSync(audioPath) } catch { }
+		try { unlinkSync(outputPath) } catch { }
+
+		console.log('🎬 Subtitles and Audio processed successfully')
+		return outputBase64
+	} catch (err) {
+		console.warn(`⚠️ Video processing failed: ${err.message}`)
+		return videoBase64
+	}
+}
+
+// Post Reels to Facebook
+async function postReel(thaiSummary, link, videoBase64) {
+	const pageId = process.env.PAGE_ID
+	const accessToken = process.env.PAGE_ACCESS_TOKEN
+
+	if (!pageId || !accessToken) throw new Error('PAGE_ID or PAGE_ACCESS_TOKEN not set')
+
+	const caption = `${thaiSummary}
+
+📖 อ่านต่อได้ที่: ${link}
+
+#Liverpool #LFC #YNWA #คอบอลเดอะค็อป #ลิเวอร์พูล #Reels`
+
+	const videoBuffer = Buffer.from(videoBase64, 'base64')
+	const formData = new FormData()
+	formData.append('description', caption)
+	formData.append('source', videoBuffer, { filename: 'reel.mp4', contentType: 'video/mp4' })
+	formData.append('access_token', accessToken)
+
+	const response = await axios.post(
+		`https://graph.facebook.com/v20.0/${pageId}/videos`,
+		formData,
+		{ headers: formData.getHeaders(), timeout: 120000 }
+	)
+
+	return response.data.id
+}
+
+// Core Reels bot function
+async function runReelBot() {
+	let post = null
+	try {
+		console.log('🎬 Starting Reels bot...')
+		const news = await fetchNews()
+
+		if (!news.length) {
+			console.warn('⚠️ No news found for Reels')
+			return
+		}
+
+		// Check duplicates against last 24h
+		const recentPosts = await prisma.post.findMany({
+			where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+			select: { title: true }
+		})
+
+		const isDuplicate = (newTitle) => {
+			const newWords = newTitle.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+			return recentPosts.some(p => {
+				const oldWords = p.title.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+				const matchCount = newWords.filter(w => oldWords.includes(w)).length
+				return matchCount >= 4 // If 4+ significant words match, it's a duplicate
+			})
+		}
+
+		// Pick latest unposted news
+		let latest = null
+		for (const item of news) {
+			const existing = await prisma.post.findFirst({ where: { link: item.link } })
+			if (!existing && !isDuplicate(item.title)) { latest = item; break }
+		}
+
+		if (!latest) {
+			console.warn('⚠️ No unposted articles for Reels')
+			return
+		}
+
+		// Generate Thai summary and video script
+		console.log('🤖 Generating video script...')
+		const thaiSummary = await summarizeThai(latest.title, latest.description)
+		const script = await generateVideoScript(latest.title, thaiSummary)
+
+		if (!script) {
+			console.warn('⚠️ No script generated')
+			return
+		}
+
+		// Save to DB
+		post = await prisma.post.create({
+			data: {
+				title: `[REEL] ${latest.title}`,
+				content: thaiSummary,
+				link: latest.link,
+				status: 'PENDING',
+			},
+		})
+
+		// Generate video with Veo
+		console.log('🎬 Generating video with Veo...')
+		const videoBase64 = await generateVideo(script.videoPrompt)
+
+		if (!videoBase64) {
+			await prisma.post.update({ where: { id: post.id }, data: { status: 'FAILED' } })
+			return
+		}
+
+		// Generate Voiceover with Google Cloud TTS
+		const audioBase64 = await generateVoiceover(thaiSummary)
+
+		// Burn Thai subtitles and Audio
+		console.log('📝 Processing video with subtitles and voiceover...')
+		const finalVideo = await burnSubtitlesAndAudio(videoBase64, script.subtitles, audioBase64)
+
+		// Post as Reels
+		console.log('📢 Posting Reels...')
+		const fbPostId = await postReel(thaiSummary, latest.link, finalVideo)
+
+		await prisma.post.update({
+			where: { id: post.id },
+			data: { status: 'POSTED', fbPostId, postedAt: new Date() },
+		})
+
+		console.log(`✅ Reel posted! FB Post ID: ${fbPostId}`)
+	} catch (err) {
+		console.error('❌ Reel bot error:', err.message)
+		if (post?.id) {
+			await prisma.post.update({
+				where: { id: post.id },
+				data: { status: 'FAILED' },
+			})
+		}
+	}
+}
+
+// Fetch original article image (og:image)
+async function getArticleImage(url) {
+	try {
+		const response = await axios.get(url, {
+			timeout: 5000,
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+		})
+		const match = response.data.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["'](.*?)["']/i)
+		return match ? match[1] : null
+	} catch (err) {
+		return null
+	}
+}
+
 // Post to Facebook with image
 async function postToFacebook(thaiSummary, link, imageBase64, title = '') {
 	const pageId = process.env.PAGE_ID
@@ -255,18 +545,45 @@ async function postToFacebook(thaiSummary, link, imageBase64, title = '') {
 		if (score) {
 			const width = 1024
 			const svgOverlay = `
-				<svg width="${width}" height="120">
-					<rect x="0" y="0" width="${width}" height="120" fill="rgba(0,0,0,0.65)" rx="0"/>
-					<text x="50%" y="75" font-family="Arial Black, Arial" font-size="72" font-weight="900"
-						fill="white" text-anchor="middle" dominant-baseline="middle"
-						letter-spacing="8">${score}</text>
-				</svg>`
-
+					<svg width="${width}" height="180">
+						<!-- Broadcast Style Score Graphic (Bottom Left) -->
+						<defs>
+							<linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+								<stop offset="0%" style="stop-color:#111111;stop-opacity:0.9" />
+								<stop offset="100%" style="stop-color:#000000;stop-opacity:0.95" />
+							</linearGradient>
+							<linearGradient id="redAccent" x1="0%" y1="0%" x2="0%" y2="100%">
+								<stop offset="0%" style="stop-color:#FF3333;stop-opacity:1" />
+								<stop offset="100%" style="stop-color:#8B0000;stop-opacity:1" />
+							</linearGradient>
+							<filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+								<feGaussianBlur stdDeviation="3" result="blur" />
+								<feComposite in="SourceGraphic" in2="blur" operator="over"/>
+							</filter>
+						</defs>
+						
+						<!-- Main dark panel -->
+						<rect x="40" y="40" width="340" height="100" fill="url(#darkBg)" rx="8" />
+						
+						<!-- Red accent line on the left -->
+						<rect x="40" y="40" width="8" height="100" fill="url(#redAccent)" rx="4" />
+						
+						<!-- 'LIVERPOOL FC' text -->
+						<text x="65" y="70" font-family="Arial, sans-serif" font-size="14" font-weight="bold"
+						fill="#cccccc" letter-spacing="4">MATCH RESULT</text>
+						
+						<!-- SCORE text -->
+						<text x="65" y="115" font-family="'Arial Black', Impact, sans-serif" font-size="42" font-weight="900"
+						fill="#ffffff" letter-spacing="2" filter="url(#glow)">${score}</text>
+						
+						<!-- Little red dot / Live indicator -->
+						<circle cx="350" cy="90" r="5" fill="#FF3333" filter="url(#glow)"/>
+					</svg>`
 			processor = processor.composite([{
 				input: Buffer.from(svgOverlay),
-				gravity: 'south',
+				gravity: 'southwest',
 			}])
-			console.log(`🏆 Score overlay added: ${score}`)
+			console.log(`🏆 Broadcast style score overlay added: ${score}`)
 		}
 
 		const jpgBuffer = await processor.jpeg({ quality: 90 }).toBuffer()
@@ -296,6 +613,7 @@ async function postToFacebook(thaiSummary, link, imageBase64, title = '') {
 
 // Core bot function
 async function runBot() {
+	let post = null
 	try {
 		console.log('📰 Fetching Liverpool news...')
 		const news = await fetchNews()
@@ -305,14 +623,41 @@ async function runBot() {
 			return
 		}
 
-		const latest = news[0]
+		// Anti-duplicate logic
+		const recentPosts = await prisma.post.findMany({
+			where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+			select: { title: true }
+		})
+
+		const isDuplicate = (newTitle) => {
+			const newWords = newTitle.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+			return recentPosts.some(p => {
+				const oldWords = p.title.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+				const matchCount = newWords.filter(w => oldWords.includes(w)).length
+				return matchCount >= 4
+			})
+		}
+
+		let latest = null
+		for (const item of news) {
+			const existing = await prisma.post.findFirst({ where: { link: item.link } })
+			if (!existing && !isDuplicate(item.title)) {
+				latest = item
+				break
+			}
+		}
+
+		if (!latest) {
+			console.warn('⚠️ No unposted new articles found in the fetched list')
+			return
+		}
 
 		// Summarize in Thai using Gemini
 		console.log('🤖 Summarizing in Thai...')
 		const thaiSummary = await summarizeThai(latest.title, latest.description)
 
 		// Save to DB with PENDING status
-		const post = await prisma.post.create({
+		post = await prisma.post.create({
 			data: {
 				title: latest.title,
 				content: thaiSummary,
@@ -321,9 +666,25 @@ async function runBot() {
 			},
 		})
 
-		// Generate AI image
-		console.log('🎨 Generating AI image...')
-		const imageBase64 = await generateImage(latest.title, thaiSummary)
+		// Use official article image for liverpoolfc.com, fallback to AI
+		let imageBase64 = null
+		if (latest.link.includes('liverpoolfc.com')) {
+			const articleImageUrl = await getArticleImage(latest.link)
+			if (articleImageUrl) {
+				try {
+					const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
+					imageBase64 = Buffer.from(imgRes.data).toString('base64')
+					console.log(`✅ Using official article image`)
+				} catch (err) {
+					console.warn('⚠️ Failed to download article image')
+				}
+			}
+		}
+
+		if (!imageBase64) {
+			console.log('🎨 Generating AI image...')
+			imageBase64 = await generateImage(latest.title, thaiSummary)
+		}
 
 		console.log(`📢 Posting...`)
 		const fbPostId = await postToFacebook(thaiSummary, latest.link, imageBase64, latest.title)
@@ -337,16 +698,38 @@ async function runBot() {
 		console.log(`✅ Posted! FB Post ID: ${fbPostId}`)
 	} catch (err) {
 		console.error('❌ Bot error:', err.message)
+		if (err.response && err.response.data) {
+			console.error('❌ Response data:', JSON.stringify(err.response.data, null, 2))
+		}
+
+		// Update status to FAILED if post was created
+		if (post?.id) {
+			await prisma.post.update({
+				where: { id: post.id },
+				data: { status: 'FAILED' },
+			})
+		}
 	}
 }
 
-// Schedule posts at 08:00, 12:00, 20:00 (UTC+7)
-cron.schedule('0 1 * * *', runBot)  // 08:00 TH
-cron.schedule('0 5 * * *', runBot)  // 12:00 TH
-cron.schedule('0 13 * * *', runBot) // 20:00 TH
+// News posts: 08:00, 11:00, 14:00, 17:00, 20:00, 23:00 (UTC+7)
+cron.schedule('0 1 * * *', runBot)   // 08:00 TH
+cron.schedule('0 4 * * *', runBot)   // 11:00 TH
+cron.schedule('0 7 * * *', runBot)   // 14:00 TH
+cron.schedule('0 10 * * *', runBot)   // 17:00 TH
+cron.schedule('0 13 * * *', runBot)   // 20:00 TH
+cron.schedule('0 16 * * *', runBot)   // 23:00 TH
+
+// Reels posts: 09:30, 13:30, 19:30 (UTC+7)
+cron.schedule('30 2 * * *', runReelBot)  // 09:30 TH
+cron.schedule('30 6 * * *', runReelBot)  // 13:30 TH
+cron.schedule('30 12 * * *', runReelBot)  // 19:30 TH
 
 // Auto-refresh token every 50 days
 cron.schedule('0 0 */50 * *', refreshFacebookToken)
 
 console.log('🔴 The Kop Bot started...')
 runBot()
+
+// Temporary test — remove after testing
+runReelBot()
