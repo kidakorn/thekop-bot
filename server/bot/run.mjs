@@ -334,7 +334,7 @@ async function burnSubtitlesAndAudio(videoBase64, subtitles, audioBase64) {
 
 		// Write video file
 		writeFileSync(inputPath, Buffer.from(videoBase64, 'base64'))
-		
+
 		// Write audio file if exists
 		if (audioBase64) writeFileSync(audioPath, Buffer.from(audioBase64, 'base64'))
 
@@ -732,4 +732,4 @@ console.log('🔴 The Kop Bot started...')
 runBot()
 
 // Temporary test — remove after testing
-runReelBot()
+// runReelBot()
