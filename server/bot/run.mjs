@@ -723,10 +723,13 @@ cron.schedule('0 18 * * *', runBot, { timezone: "Asia/Bangkok" })
 cron.schedule('0 20 * * *', runBot, { timezone: "Asia/Bangkok" })
 cron.schedule('0 22 * * *', runBot, { timezone: "Asia/Bangkok" })
 
-// Reels posts: 09:30, 13:30, 19:30 (Asia/Bangkok)
+// Reels posts: (Asia/Bangkok)
 cron.schedule('30 9 * * *', runReelBot, { timezone: "Asia/Bangkok" })
 cron.schedule('30 13 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+cron.schedule('30 17 * * *', runReelBot, { timezone: "Asia/Bangkok" })
 cron.schedule('30 19 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+cron.schedule('30 21 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+cron.schedule('30 23 * * *', runReelBot, { timezone: "Asia/Bangkok" })
 
 // Auto-refresh token every 50 days
 cron.schedule('0 0 */50 * *', refreshFacebookToken, { timezone: "Asia/Bangkok" })
