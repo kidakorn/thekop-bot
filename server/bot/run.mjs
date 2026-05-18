@@ -352,19 +352,21 @@ async function burnSubtitlesAndAudio(videoBase64, subtitles, audioBase64) {
 
 		writeFileSync(srtPath, srtContent, 'utf8')
 
-		// Execute ffmpeg with or without audio merging
+		// Execute ffmpeg with audio and subtitles
 		const bInputPath = path.basename(inputPath)
 		const bSrtPath = path.basename(srtPath)
 		const bAudioPath = path.basename(audioPath)
 		const bOutputPath = path.basename(outputPath)
 
 		let ffmpegCmd = ''
+		
 		if (audioBase64) {
 			ffmpegCmd = `ffmpeg -stream_loop -1 -i "${bInputPath}" -i "${bAudioPath}" -map 0:v:0 -map 1:a:0 -c:v libx264 -c:a aac -shortest "${bOutputPath}" -y`
 		} else {
 			ffmpegCmd = `ffmpeg -i "${bInputPath}" -c:a copy "${bOutputPath}" -y`
 		}
 
+		console.log('🔄 Running FFMPEG...')
 		execSync(ffmpegCmd, { cwd: tmpDir, stdio: 'pipe' })
 
 		const outputBase64 = readFileSync(outputPath).toString('base64')
