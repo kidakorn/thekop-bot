@@ -177,12 +177,13 @@ async function generateImage(title, thaiSummary) {
 				contents: [{
 					role: 'user',
 					parts: [{
-						text: `You are a professional sports photographer AI. Create a cinematic English image prompt (max 60 words) for Liverpool FC MEN'S FIRST TEAM news only.
+						text: `You are a professional sports photographer AI. Create a cinematic English image prompt (max 60 words) for Liverpool FC news only.
 						Rules:
-						- IDENTIFY PLAYERS: Extract specific Liverpool players/manager from the news topic. If none are mentioned, default to key figures (e.g., Mohamed Salah, Virgil van Dijk, Florian Wirtz, Alexander Isak). EXPLICITLY include their full names in your image prompt.
-						- STRICT SUBJECT RULE: Focus on the SINGLE primary Liverpool player mentioned. If the news is about Mohamed Salah, draw ONLY Mohamed Salah alone. DO NOT draw multiple players unless explicitly required. DO NOT draw non-Liverpool personnel (like Xabi Alonso) in a Liverpool kit. If no specific player is mentioned, default to drawing one generic 25/26 squad player.
+						- IDENTIFY SUBJECTS: Extract specific CURRENT Liverpool players or manager from the news topic. EXPLICITLY include their full names in your image prompt.
+						- PUNDITS & RIVALS RULE: If the news is about a pundit, legend, or rival (e.g., Wayne Rooney, Jamie Carragher, Xabi Alonso), DO NOT EVER draw them in a Liverpool kit. Instead, draw the CURRENT Liverpool player they are talking about (e.g., draw Mohamed Salah if Rooney is talking about Salah).
+						- STRICT SUBJECT RULE: Focus on a SINGLE primary Liverpool player or manager Arne Slot. DO NOT draw multiple players. If no specific current Liverpool player is mentioned, default to drawing Mohamed Salah or Arne Slot.
 						- Squad Reference for 25/26: Manager Arne Slot, Alisson, Mamardashvili, Van Dijk, Konate, Gomez, Robertson, Frimpong, Kerkez, Bradley, Mac Allister, Szoboszlai, Wirtz, Gravenberch, Jones, Endo, Salah, Isak, Gakpo, Chiesa, Ekitike.
-						- STRICT KIT RULE: Players MUST wear a BRIGHT RED ADIDAS football jersey with 3 distinct white stripes on the shoulders. The jersey MUST have the Adidas logo on the right chest, and the 'Standard Chartered' sponsor logo in the center. 
+						- STRICT KIT RULE: The Liverpool player MUST wear a BRIGHT RED ADIDAS football jersey with 3 distinct white stripes on the shoulders. The jersey MUST have the Adidas logo on the right chest, and the 'Standard Chartered' sponsor logo in the center. (If drawing Manager Arne Slot, he should wear a red Adidas manager's polo or jacket).
 						- ABSOLUTELY NO NAMES OR NUMBERS: DO NOT show the back of the jersey. Front or side profile ONLY. Do not generate any names or large numbers on the shirt (to avoid spelling errors).
 						- Modern Anfield stadium, capacity 61,000.
 						- Photorealistic DSLR sports photography, dramatic lighting, highly detailed.
@@ -712,24 +713,26 @@ async function runBot() {
 	}
 }
 
-// News posts: 08:00, 11:00, 14:00, 17:00, 20:00, 23:00 (UTC+7)
-cron.schedule('0 1 * * *', runBot)   // 08:00 TH
-cron.schedule('0 4 * * *', runBot)   // 11:00 TH
-cron.schedule('0 7 * * *', runBot)   // 14:00 TH
-cron.schedule('0 10 * * *', runBot)   // 17:00 TH
-cron.schedule('0 13 * * *', runBot)   // 20:00 TH
-cron.schedule('0 16 * * *', runBot)   // 23:00 TH
+// News posts: (Asia/Bangkok)
+cron.schedule('0 8 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 11 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 12 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 14 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 16 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 18 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 20 * * *', runBot, { timezone: "Asia/Bangkok" })
+cron.schedule('0 22 * * *', runBot, { timezone: "Asia/Bangkok" })
 
-// Reels posts: 09:30, 13:30, 19:30 (UTC+7)
-cron.schedule('30 2 * * *', runReelBot)  // 09:30 TH
-cron.schedule('30 6 * * *', runReelBot)  // 13:30 TH
-cron.schedule('30 12 * * *', runReelBot)  // 19:30 TH
+// Reels posts: 09:30, 13:30, 19:30 (Asia/Bangkok)
+cron.schedule('30 9 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+cron.schedule('30 13 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+cron.schedule('30 19 * * *', runReelBot, { timezone: "Asia/Bangkok" })
 
 // Auto-refresh token every 50 days
-cron.schedule('0 0 */50 * *', refreshFacebookToken)
+cron.schedule('0 0 */50 * *', refreshFacebookToken, { timezone: "Asia/Bangkok" })
 
 console.log('🔴 The Kop Bot started...')
-runBot()
+// runBot()
 
 // Temporary test — remove after testing
 // runReelBot()
