@@ -280,7 +280,7 @@ export default function DashboardPage() {
             <div className="sidebar-status-dot" />
             <div className="sidebar-status-text">
               <strong>Bot Active</strong>
-              <small>Runs 6× / day</small>
+              <small>Runs 14× / day</small>
             </div>
           </div>
         </div>
@@ -538,26 +538,37 @@ export default function DashboardPage() {
                 <div className="table-card-title">Posting Schedule</div>
               </div>
               <div style={{ padding: '6px 0' }}>
-                {[
-                  { time: '08:00', label: 'Morning Post', cron: '0 1 * * *' },
-                  { time: '11:00', label: 'Late Morning', cron: '0 4 * * *' },
-                  { time: '14:00', label: 'Afternoon Post', cron: '0 7 * * *' },
-                  { time: '17:00', label: 'Evening Post', cron: '0 10 * * *' },
-                  { time: '20:00', label: 'Prime Time', cron: '0 13 * * *' },
-                  { time: '23:00', label: 'Night Post', cron: '0 16 * * *' },
-                ].map((s, i) => (
+                 {[
+                  { time: '08:00', label: 'Morning News', cron: '0 8 * * * (Asia/Bangkok)' },
+                  { time: '09:30', label: 'Morning Reel', cron: '30 9 * * * (Asia/Bangkok)', isReel: true },
+                  { time: '11:00', label: 'Late Morning News', cron: '0 11 * * * (Asia/Bangkok)' },
+                  { time: '12:00', label: 'Noon News', cron: '0 12 * * * (Asia/Bangkok)' },
+                  { time: '13:30', label: 'Afternoon Reel', cron: '30 13 * * * (Asia/Bangkok)', isReel: true },
+                  { time: '14:00', label: 'Afternoon News', cron: '0 14 * * * (Asia/Bangkok)' },
+                  { time: '16:00', label: 'Late Afternoon News', cron: '0 16 * * * (Asia/Bangkok)' },
+                  { time: '17:30', label: 'Evening Reel', cron: '30 17 * * * (Asia/Bangkok)', isReel: true },
+                  { time: '18:00', label: 'Evening News', cron: '0 18 * * * (Asia/Bangkok)' },
+                  { time: '19:30', label: 'Prime Time Reel', cron: '30 19 * * * (Asia/Bangkok)', isReel: true },
+                  { time: '20:00', label: 'Prime Time News', cron: '0 20 * * * (Asia/Bangkok)' },
+                  { time: '21:30', label: 'Night Reel', cron: '30 21 * * * (Asia/Bangkok)', isReel: true },
+                  { time: '22:00', label: 'Late Night News', cron: '0 22 * * * (Asia/Bangkok)' },
+                  { time: '23:30', label: 'Midnight Reel', cron: '30 23 * * * (Asia/Bangkok)', isReel: true },
+                ].map((s, i, arr) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 16,
-                    padding: '13px 20px', borderBottom: i < 5 ? '1px solid #f0f2f5' : 'none',
+                    padding: '13px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f0f2f5' : 'none',
                   }}>
                     <div style={{
                       width: 52, textAlign: 'center', fontWeight: 700,
-                      fontSize: 14, color: '#C8102E',
+                      fontSize: 14, color: s.isReel ? '#7c3aed' : '#C8102E',
                     }}>
                       {s.time}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13.5 }}>{s.label}</div>
+                      <div style={{ fontWeight: 500, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {s.label}
+                        {s.isReel && <span style={{ fontSize: 10, padding: '2px 6px', background: '#ede9fe', color: '#7c3aed', borderRadius: 4, fontWeight: 600 }}>REEL</span>}
+                      </div>
                       <div style={{ fontSize: 11.5, color: '#b0b5c9', fontFamily: 'monospace' }}>{s.cron}</div>
                     </div>
                     <span className="badge-status badge-posted">
@@ -594,7 +605,7 @@ export default function DashboardPage() {
                 <div className="stat-card-content">
                   <div className="stat-card-label">Posted Today</div>
                   <div className="stat-card-value">{totalPostedToday}</div>
-                  <div className="stat-card-sub">of 6 scheduled</div>
+                  <div className="stat-card-sub">of 14 scheduled</div>
                 </div>
               </div>
               <div className="stat-card">
