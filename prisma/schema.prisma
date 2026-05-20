@@ -31,3 +31,10 @@ enum PostStatus {
   FAILED
   SKIPPED
 }
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}

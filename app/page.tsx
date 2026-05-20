@@ -78,11 +78,110 @@ export default function DashboardPage() {
     useSWR<Post[]>('/api/posts', fetcher, { refreshInterval: 30000 })
   const posts = Array.isArray(postsData) ? postsData : []
 
+  const { data: settingsData, mutate: mutateSettings } =
+    useSWR<{ news_schedule: string[]; reels_schedule: string[] }>('/api/settings', fetcher)
+
+  const [editedNews, setEditedNews] = useState<string[]>([])
+  const [editedReels, setEditedReels] = useState<string[]>([])
+  const [newNewsTime, setNewNewsTime] = useState('12:00')
+  const [newReelTime, setNewReelTime] = useState('12:00')
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (settingsData) {
+      setEditedNews(settingsData.news_schedule)
+      setEditedReels(settingsData.reels_schedule)
+    }
+  }, [settingsData])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function addNewsTime() {
+    if (!editedNews.includes(newNewsTime)) {
+      setEditedNews([...editedNews, newNewsTime].sort())
+    } else {
+      showToast('เวลานี้มีอยู่ในตารางอยู่แล้ว', 'error')
+    }
+  }
+
+  function removeNewsTime(time: string) {
+    setEditedNews(editedNews.filter(t => t !== time))
+  }
+
+  function addReelTime() {
+    if (!editedReels.includes(newReelTime)) {
+      setEditedReels([...editedReels, newReelTime].sort())
+    } else {
+      showToast('เวลานี้มีอยู่ในตารางอยู่แล้ว', 'error')
+    }
+  }
+
+  function removeReelTime(time: string) {
+    setEditedReels(editedReels.filter(t => t !== time))
+  }
+
+  async function handleSaveSettings() {
+    setSavingSettings(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          news_schedule: editedNews,
+          reels_schedule: editedReels
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.error ?? 'Failed to save settings', 'error')
+        return
+      }
+
+      mutateSettings()
+      showToast('บันทึกตั้งค่าตารางเวลาเรียบร้อยแล้ว', 'success')
+    } catch (err) {
+      console.error(err)
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const activeSchedules = (() => {
+    const news = settingsData?.news_schedule ?? ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
+    const reels = settingsData?.reels_schedule ?? ['09:30', '13:30', '17:30', '19:30', '21:30', '23:30']
+    
+    const items: { time: string; label: string; isReel: boolean; cron: string }[] = []
+    
+    news.forEach(time => {
+      const [h, m] = time.split(':')
+      items.push({
+        time,
+        label: `${parseInt(h) < 12 ? 'Morning' : parseInt(h) < 17 ? 'Afternoon' : 'Evening'} News`,
+        isReel: false,
+        cron: `${parseInt(m)} ${parseInt(h)} * * * (Asia/Bangkok)`
+      })
+    })
+
+    reels.forEach(time => {
+      const [h, m] = time.split(':')
+      items.push({
+        time,
+        label: `${parseInt(h) < 12 ? 'Morning' : parseInt(h) < 17 ? 'Afternoon' : 'Evening'} Reel`,
+        isReel: true,
+        cron: `${parseInt(m)} ${parseInt(h)} * * * (Asia/Bangkok)`
+      })
+    })
+
+    return items.sort((a, b) => a.time.localeCompare(b.time))
+  })()
+
   const totalPostedToday = posts.filter(p => {
     return p.status === 'POSTED' && new Date(p.createdAt).toDateString() === new Date().toDateString()
   }).length
 
-  function handleRefresh() { mutateStats(); mutatePosts() }
+  function handleRefresh() { mutateStats(); mutatePosts(); mutateSettings() }
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })
@@ -538,45 +637,37 @@ export default function DashboardPage() {
                 <div className="table-card-title">Posting Schedule</div>
               </div>
               <div style={{ padding: '6px 0' }}>
-                 {[
-                  { time: '08:00', label: 'Morning News', cron: '0 8 * * * (Asia/Bangkok)' },
-                  { time: '09:30', label: 'Morning Reel', cron: '30 9 * * * (Asia/Bangkok)', isReel: true },
-                  { time: '11:00', label: 'Late Morning News', cron: '0 11 * * * (Asia/Bangkok)' },
-                  { time: '12:00', label: 'Noon News', cron: '0 12 * * * (Asia/Bangkok)' },
-                  { time: '13:30', label: 'Afternoon Reel', cron: '30 13 * * * (Asia/Bangkok)', isReel: true },
-                  { time: '14:00', label: 'Afternoon News', cron: '0 14 * * * (Asia/Bangkok)' },
-                  { time: '16:00', label: 'Late Afternoon News', cron: '0 16 * * * (Asia/Bangkok)' },
-                  { time: '17:30', label: 'Evening Reel', cron: '30 17 * * * (Asia/Bangkok)', isReel: true },
-                  { time: '18:00', label: 'Evening News', cron: '0 18 * * * (Asia/Bangkok)' },
-                  { time: '19:30', label: 'Prime Time Reel', cron: '30 19 * * * (Asia/Bangkok)', isReel: true },
-                  { time: '20:00', label: 'Prime Time News', cron: '0 20 * * * (Asia/Bangkok)' },
-                  { time: '21:30', label: 'Night Reel', cron: '30 21 * * * (Asia/Bangkok)', isReel: true },
-                  { time: '22:00', label: 'Late Night News', cron: '0 22 * * * (Asia/Bangkok)' },
-                  { time: '23:30', label: 'Midnight Reel', cron: '30 23 * * * (Asia/Bangkok)', isReel: true },
-                ].map((s, i, arr) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    padding: '13px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f0f2f5' : 'none',
-                  }}>
-                    <div style={{
-                      width: 52, textAlign: 'center', fontWeight: 700,
-                      fontSize: 14, color: s.isReel ? '#7c3aed' : '#C8102E',
-                    }}>
-                      {s.time}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {s.label}
-                        {s.isReel && <span style={{ fontSize: 10, padding: '2px 6px', background: '#ede9fe', color: '#7c3aed', borderRadius: 4, fontWeight: 600 }}>REEL</span>}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#b0b5c9', fontFamily: 'monospace' }}>{s.cron}</div>
-                    </div>
-                    <span className="badge-status badge-posted">
-                      <span style={{ width: 5, height: 5, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
-                      Enabled
-                    </span>
+                {activeSchedules.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '24px 0' }}>
+                    <Clock size={30} strokeWidth={1.5} />
+                    <div style={{ fontSize: 13, marginTop: 8 }}>ไม่มีกำหนดเวลาโพสต์ในขณะนี้</div>
                   </div>
-                ))}
+                ) : (
+                  activeSchedules.map((s, i, arr) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 16,
+                      padding: '13px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f0f2f5' : 'none',
+                    }}>
+                      <div style={{
+                        width: 52, textAlign: 'center', fontWeight: 700,
+                        fontSize: 14, color: s.isReel ? '#7c3aed' : '#C8102E',
+                      }}>
+                        {s.time}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {s.label}
+                          {s.isReel && <span style={{ fontSize: 10, padding: '2px 6px', background: '#ede9fe', color: '#7c3aed', borderRadius: 4, fontWeight: 600 }}>REEL</span>}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#b0b5c9', fontFamily: 'monospace' }}>{s.cron}</div>
+                      </div>
+                      <span className="badge-status badge-posted">
+                        <span style={{ width: 5, height: 5, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
+                        Enabled
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -698,7 +789,7 @@ export default function DashboardPage() {
         ═════════════════════════════════ */}
         {activePage === 'settings' && (
           <div className="page-body">
-            <div className="table-card">
+            <div className="table-card" style={{ marginBottom: 20 }}>
               <div className="table-card-header">
                 <div className="table-card-title">Configuration</div>
                 <div className="table-card-meta">Environment variables</div>
@@ -731,6 +822,133 @@ export default function DashboardPage() {
                   </span>
                 </div>
               ))}
+            </div>
+
+            {/* Scheduler settings card */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 20 }}>
+              {/* News Schedule Card */}
+              <div className="table-card" style={{ padding: 24 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f1117', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Radio size={18} color="#C8102E" />
+                  ตารางเวลาโพสต์ข่าว (News Schedule)
+                </h3>
+                <p style={{ fontSize: 12.5, color: '#8a8fa8', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์คอนเทนต์ข่าวลิเวอร์พูลปกติ</p>
+
+                {/* Add new time row */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input
+                    type="time"
+                    value={newNewsTime}
+                    onChange={(e) => setNewNewsTime(e.target.value)}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, border: '1px solid #e8eaed',
+                      outline: 'none', background: '#f8f9fb', fontSize: 14, flex: 1
+                    }}
+                  />
+                  <button
+                    onClick={addNewsTime}
+                    className="btn-refresh"
+                    style={{ background: '#C8102E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    เพิ่มเวลา
+                  </button>
+                </div>
+
+                {/* Times list */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {editedNews.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#8a8fa8', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ข่าว</div>
+                  ) : (
+                    editedNews.map(time => (
+                      <span key={time} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: '#fef2f2', color: '#C8102E', border: '1px solid #fee2e2',
+                        borderRadius: 6, padding: '5px 10px', fontSize: 13, fontWeight: 600
+                      }}>
+                        {time}
+                        <button
+                          onClick={() => removeNewsTime(time)}
+                          style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', display: 'flex', padding: 0 }}
+                          title="Remove time"
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Reels Schedule Card */}
+              <div className="table-card" style={{ padding: 24 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f1117', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Radio size={18} color="#7c3aed" />
+                  ตารางเวลาโพสต์ Reels (Reels Schedule)
+                </h3>
+                <p style={{ fontSize: 12.5, color: '#8a8fa8', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์วิดีโอสั้น / Reels</p>
+
+                {/* Add new time row */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input
+                    type="time"
+                    value={newReelTime}
+                    onChange={(e) => setNewReelTime(e.target.value)}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, border: '1px solid #e8eaed',
+                      outline: 'none', background: '#f8f9fb', fontSize: 14, flex: 1
+                    }}
+                  />
+                  <button
+                    onClick={addReelTime}
+                    className="btn-refresh"
+                    style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    เพิ่มเวลา
+                  </button>
+                </div>
+
+                {/* Times list */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {editedReels.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#8a8fa8', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ Reels</div>
+                  ) : (
+                    editedReels.map(time => (
+                      <span key={time} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe',
+                        borderRadius: 6, padding: '5px 10px', fontSize: 13, fontWeight: 600
+                      }}>
+                        {time}
+                        <button
+                          onClick={() => removeReelTime(time)}
+                          style={{ background: 'none', border: 'none', color: '#6d28d9', cursor: 'pointer', display: 'flex', padding: 0 }}
+                          title="Remove time"
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Save Button Card */}
+            <div className="table-card" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                disabled={savingSettings}
+                onClick={handleSaveSettings}
+                className="btn-refresh"
+                style={{
+                  background: '#C8102E', color: '#fff', border: 'none',
+                  borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
+                  cursor: 'pointer', opacity: savingSettings ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}
+              >
+                {savingSettings ? <RefreshCw size={14} className="animate-spin" /> : null}
+                บันทึกกำหนดเวลาทั้งหมด
+              </button>
             </div>
           </div>
         )}

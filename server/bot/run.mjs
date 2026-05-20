@@ -13,7 +13,7 @@ import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import textToSpeech from '@google-cloud/text-to-speech'
 import { execSync } from 'child_process'
-import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
+import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
 
 const { Pool } = pg
 
@@ -26,6 +26,65 @@ const prisma = new PrismaClient({ adapter })
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const keyPath = path.resolve(process.cwd(), 'vertex-key.json')
 const auth = new GoogleAuth({ keyFile: keyPath, scopes: ['https://www.googleapis.com/auth/cloud-platform'] })
+
+const assetKeywords = [
+	// Players
+	{ file: 'Alexis_Mac_Allister.webp', type: 'players', keywords: ['mac allister', 'alexis', 'แม็ค อัลลิสเตอร์', 'แม็คอัลลิสเตอร์', 'อเล็กซิส'] },
+	{ file: 'Alisson_Becker.webp', type: 'players', keywords: ['alisson', 'becker', 'อลิสซอน', 'เบ็คเกอร์', 'อลิสซัน'] },
+	{ file: 'Andy_Robertson.webp', type: 'players', keywords: ['robertson', 'andy', 'โรเบิร์ตสัน', 'แอนดี้', 'ร็อบโบ้'] },
+	{ file: 'Cody_Gakpo.webp', type: 'players', keywords: ['gakpo', 'cody', 'กัคโป', 'โคดี้'] },
+	{ file: 'Conor_Bradley.webp', type: 'players', keywords: ['bradley', 'conor', 'แบรดลีย์', 'คอเนอร์'] },
+	{ file: 'Curtis_Jones.webp', type: 'players', keywords: ['jones', 'curtis', 'โจนส์', 'เคอร์ติส'] },
+	{ file: 'Diogo_Jota.webp', type: 'players', keywords: ['jota', 'diogo', 'โชต้า', 'ดิโอโก้'] },
+	{ file: 'Dominik_Szoboszlai.webp', type: 'players', keywords: ['szoboszlai', 'dominik', 'โซบอสไล', 'โดมินิก'] },
+	{ file: 'Federico_Chiesa.webp', type: 'players', keywords: ['chiesa', 'federico', 'เคียซ่า', 'เฟเดริโก้'] },
+	{ file: 'Florian_Wirtz.webp', type: 'players', keywords: ['wirtz', 'florian', 'เวียร์ตซ์', 'ฟลอเรียน'] },
+	{ file: 'Freddie_Woodman.webp', type: 'players', keywords: ['woodman', 'freddie', 'วู้ดแมน', 'เฟรดดี้'] },
+	{ file: 'Giorgi_Mamardashvili.webp', type: 'players', keywords: ['mamardashvili', 'giorgi', 'มามาร์ดาชวิลี', 'จอร์จี้'] },
+	{ file: 'Giovanni_Leoni.webp', type: 'players', keywords: ['leoni', 'giovanni', 'เลโอนี', 'โจวันนี'] },
+	{ file: 'Harvey_Elliott.webp', type: 'players', keywords: ['elliott', 'harvey', 'เอลเลียต', 'ฮาร์วีย์'] },
+	{ file: 'Hugo_Ekitike.webp', type: 'players', keywords: ['ekitike', 'hugo', 'เอกิติเก้', 'ฮูโก้'] },
+	{ file: 'Ibrahima_Konate.webp', type: 'players', keywords: ['konate', 'ibrahima', 'โกนาเต้', 'อิบู', 'อิบราฮิมา'] },
+	{ file: 'Jeremie_Frimpong.webp', type: 'players', keywords: ['frimpong', 'jeremie', 'ฟริมปง', 'เจเรมี่'] },
+	{ file: 'Joe_Gomez.webp', type: 'players', keywords: ['gomez', 'joe', 'โกเมซ', 'โจ'] },
+	{ file: 'Kostas_Tsimikas.webp', type: 'players', keywords: ['tsimikas', 'kostas', 'ซิมิกาส', 'คอสตาส'] },
+	{ file: 'Milos_Kerkez.webp', type: 'players', keywords: ['kerkez', 'milos', 'เคอร์เคซ', 'มิลอส'] },
+	{ file: 'Mohamed_Salah.webp', type: 'players', keywords: ['salah', 'mohamed', 'ซาลาห์', 'โมฮาเหม็ด', 'บังโม'] },
+	{ file: 'Rio_Ngumoha.webp', type: 'players', keywords: ['ngumoha', 'rio', 'เอ็นกูโมฮา', 'ริโอ'] },
+	{ file: 'Ryan_Gravenberch.webp', type: 'players', keywords: ['gravenberch', 'ryan', 'กราเฟนแบร์ก', 'ไรอัน'] },
+	{ file: 'Virgil_van_Dijk.webp', type: 'players', keywords: ['van dijk', 'virgil', 'ฟาน ไดจ์ค', 'ฟานไดจ์ค', 'เวอร์จิล'] },
+	{ file: 'Wataru_Endo.webp', type: 'players', keywords: ['endo', 'wataru', 'เอนโด', 'วาตารุ', 'เอ็นโด'] },
+	// Staff
+	{ file: 'Arne_Slot.webp', type: 'staff', keywords: ['slot', 'arne', 'สล็อต', 'อาร์เน่'] },
+	{ file: 'Giovanni_van_Bronckhorst.webp', type: 'staff', keywords: ['bronckhorst', 'giovanni', 'บร็องฮอร์สต์', 'โจวันนี'] },
+	{ file: 'Sipke_Hulshoff.webp', type: 'staff', keywords: ['hulshoff', 'sipke', 'ฮัลชอฟฟ์', 'ซิปเก้'] },
+	// Stadium
+	{ file: 'Anfield.webp', type: 'stadium', keywords: ['anfield', 'แอนฟิลด์'] }
+]
+
+function getMatchedAsset(title, thaiSummary) {
+	const text = `${title} ${thaiSummary || ''}`.toLowerCase()
+	for (const item of assetKeywords) {
+		if (item.keywords.some(kw => text.includes(kw))) {
+			const filePath = path.join(process.cwd(), 'assets', item.type, item.file)
+			if (existsSync(filePath)) {
+				try {
+					const base64 = readFileSync(filePath).toString('base64')
+					return {
+						name: item.file.replace('.webp', '').replace(/_/g, ' '),
+						type: item.type,
+						file: item.file,
+						filePath,
+						base64
+					}
+				} catch (err) {
+					console.warn(`⚠️ Failed to read asset ${filePath}: ${err.message}`)
+				}
+			}
+		}
+	}
+	return null
+}
 
 const RSS_FEEDS = [
 	'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
@@ -49,12 +108,24 @@ function parseRSS(xmlText) {
 		const link = (itemXml.match(/<link>(.*?)<\/link>/) || [])[1] || ''
 		const description = (itemXml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) ||
 			itemXml.match(/<description>(.*?)<\/description>/) || [])[1] || ''
+		const pubDate = (itemXml.match(/<pubDate><!\[CDATA\[(.*?)\]\]><\/pubDate>/) ||
+			itemXml.match(/<pubDate>(.*?)<\/pubDate>/) || [])[1] || ''
 
 		if (title) {
+			let pubDateMs = 0
+			if (pubDate) {
+				try {
+					pubDateMs = Date.parse(pubDate.trim())
+				} catch (e) {
+					// Ignore
+				}
+			}
 			items.push({
 				title: title.trim(),
 				link: link.trim(),
 				description: description.replace(/<[^>]+>/g, '').trim().slice(0, 500),
+				pubDate: pubDate.trim(),
+				pubDateMs: isNaN(pubDateMs) ? 0 : pubDateMs
 			})
 		}
 	}
@@ -93,7 +164,20 @@ async function fetchNews() {
 		return !excludeKeywords.some(kw => text.includes(kw))
 	})
 
-	return firstTeamNews
+	// Filter out news older than 24 hours
+	const now = Date.now()
+	const twentyFourHours = 24 * 60 * 60 * 1000
+	const freshNews = firstTeamNews.filter(item => {
+		if (item.pubDateMs) {
+			const age = now - item.pubDateMs
+			if (age > twentyFourHours) {
+				return false
+			}
+		}
+		return true
+	})
+
+	return freshNews
 }
 
 // Summarize news in Thai using Gemini
@@ -160,59 +244,240 @@ function extractScore(title) {
 	return null
 }
 
+// Find reference image from assets folder based on news title
+function findReferenceImage(title) {
+	const titleLower = title.toLowerCase()
+
+	// Map names to filenames
+	const playerMap = {
+		'salah': 'Mohamed_Salah',
+		'van dijk': 'Virgil_van_Dijk',
+		'robertson': 'Andy_Robertson',
+		'trent': 'Trent_Alexander-Arnold',
+		'mac allister': 'Alexis_Mac_Allister',
+		'szoboszlai': 'Dominik_Szoboszlai',
+		'wirtz': 'Florian_Wirtz',
+		'gravenberch': 'Ryan_Gravenberch',
+		'gakpo': 'Cody_Gakpo',
+		'chiesa': 'Federico_Chiesa',
+		'elliott': 'Harvey_Elliott',
+		'bradley': 'Conor_Bradley',
+		'frimpong': 'Jeremie_Frimpong',
+		'kerkez': 'Milos_Kerkez',
+		'gomez': 'Joe_Gomez',
+		'konate': 'Ibrahima_Konate',
+		'endo': 'Wataru_Endo',
+		'jones': 'Curtis_Jones',
+		'ekitike': 'Hugo_Ekitike',
+		'jota': 'Diogo_Jota',
+		'leoni': 'Giovanni_Leoni',
+		'mamardashvili': 'Giorgi_Mamardashvili',
+		'woodman': 'Freddie_Woodman',
+		'tsimikas': 'Kostas_Tsimikas',
+		'ngumoha': 'Rio_Ngumoha',
+		'slot': 'Arne_Slot',
+		'van bronckhorst': 'Giovanni_van_Bronckhorst',
+		'hulshoff': 'Sioke_Hulshoff',
+	}
+
+	// If transfer news about non-Liverpool player — use Anfield
+	const transferKeywords = ['bowen', 'isak', 'xabi', 'rooney', 'carragher', 'gerrard', 'transfer', 'signing', 'bid', 'target', 'loan']
+	for (const keyword of transferKeywords) {
+		if (titleLower.includes(keyword)) {
+			// Check if it's NOT a current Liverpool player
+			const isLiverpoolPlayer = Object.keys(playerMap).some(k => titleLower.includes(k))
+			if (!isLiverpoolPlayer) {
+				console.log('⚽ Transfer news — using Anfield reference')
+				const stadiumPath = path.resolve(process.cwd(), 'assets/stadium/Anfield.webp')
+				if (existsSync(stadiumPath)) return stadiumPath
+			}
+		}
+	}
+
+	// Find matching player
+	for (const [keyword, filename] of Object.entries(playerMap)) {
+		if (titleLower.includes(keyword)) {
+			const extensions = ['.webp', '.jpg', '.jpeg', '.png']
+			for (const ext of extensions) {
+				const filePath = path.resolve(process.cwd(), `assets/players/${filename}${ext}`)
+				if (existsSync(filePath)) {
+					console.log(`🖼️ Found reference: ${filename}`)
+					return filePath
+				}
+				// Check staff folder
+				const staffPath = path.resolve(process.cwd(), `assets/staff/${filename}${ext}`)
+				if (existsSync(staffPath)) {
+					console.log(`🖼️ Found staff reference: ${filename}`)
+					return staffPath
+				}
+			}
+		}
+	}
+
+	// Fallback to Anfield stadium
+	const stadiumPath = path.resolve(process.cwd(), 'assets/stadium/Anfield.webp')
+	if (existsSync(stadiumPath)) {
+		console.log('🏟️ Using Anfield as reference')
+		return stadiumPath
+	}
+
+	return null
+}
+
 // Generate image using Imagen via Vertex AI
 async function generateImage(title, thaiSummary) {
 	try {
 		const client = await auth.getClient()
 		const projectId = await auth.getProjectId()
 		const location = 'us-central1'
+		const refImagePath = findReferenceImage(title)
 
-		// Generate English image prompt via Gemini
-		const translateUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
+		let refBase64 = ''
+		let mimeType = ''
+		if (refImagePath) {
+			const refBuffer = readFileSync(refImagePath)
+			refBase64 = refBuffer.toString('base64')
+			const ext = path.extname(refImagePath).toLowerCase()
+			mimeType = ext === '.webp' ? 'image/webp' : ext === '.png' ? 'image/png' : 'image/jpeg'
+		}
 
-		const translateRes = await client.request({
-			url: translateUrl,
-			method: 'POST',
-			data: {
-				contents: [{
-					role: 'user',
-					parts: [{
-						text: `You are a professional sports photographer AI. Create a cinematic English image prompt (max 60 words) for Liverpool FC news only.
-						Rules:
-						- IDENTIFY SUBJECTS: Extract specific CURRENT Liverpool players or manager from the news topic. EXPLICITLY include their full names in your image prompt.
-						- PUNDITS & RIVALS RULE: If the news is about a pundit, legend, or rival (e.g., Wayne Rooney, Jamie Carragher, Xabi Alonso), DO NOT EVER draw them in a Liverpool kit. Instead, draw the CURRENT Liverpool player they are talking about (e.g., draw Mohamed Salah if Rooney is talking about Salah).
-						- STRICT SUBJECT RULE: Focus on a SINGLE primary Liverpool player or manager Arne Slot. DO NOT draw multiple players. If no specific current Liverpool player is mentioned, default to drawing Mohamed Salah or Arne Slot.
-						- Squad Reference for 25/26: Manager Arne Slot, Alisson, Mamardashvili, Van Dijk, Konate, Gomez, Robertson, Frimpong, Kerkez, Bradley, Mac Allister, Szoboszlai, Wirtz, Gravenberch, Jones, Endo, Salah, Isak, Gakpo, Chiesa, Ekitike.
-						- STRICT KIT RULE: The Liverpool player MUST wear a BRIGHT RED ADIDAS football jersey with 3 distinct white stripes on the shoulders. The jersey MUST have the Adidas logo on the right chest, and the 'Standard Chartered' sponsor logo in the center. (If drawing Manager Arne Slot, he should wear a red Adidas manager's polo or jacket).
-						- ABSOLUTELY NO NAMES OR NUMBERS: DO NOT show the back of the jersey. Front or side profile ONLY. Do not generate any names or large numbers on the shirt (to avoid spelling errors).
-						- Modern Anfield stadium, capacity 61,000.
-						- Photorealistic DSLR sports photography, dramatic lighting, highly detailed.
-						- NO floating text, scoreboards, or watermarks.
-						- Emotion and action matching: ${title}
+		// Check for matched asset reference
+		const matchedAsset = getMatchedAsset(title, thaiSummary)
+		let imagePrompt = 'TRANSFER NEWS RULE: If the news is about a transfer target or non-Liverpool player, DO NOT draw any specific person. Instead draw: a red pen signing a contract, or Anfield stadium exterior, or a Liverpool FC shirt on a hanger.'
+		let imagenUrl = ''
+		let requestData = {}
 
-						Output ONLY the prompt.` }]
-				}],
-				generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+		if (matchedAsset) {
+			console.log(`ℹ️ Matched asset reference for image: ${matchedAsset.name} (${matchedAsset.type}/${matchedAsset.file})`)
+
+			// For subject reference, we use imagen-3.0-capability-001
+			imagenUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/imagen-3.0-capability-001:predict`
+
+			const translateUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
+			const translateRes = await client.request({
+				url: translateUrl,
+				method: 'POST',
+				data: {
+					contents: [{
+						role: 'user',
+						parts: [{
+							text: `You are a professional sports photographer AI.
+Create a simple cinematic English image prompt (max 30 words) for a Liverpool FC news article featuring the subject [1] from the reference image.
+Keep the prompt extremely simple, focusing on the portrait or action of [1] to preserve their likeness.
+
+STRICT RULES:
+1. Focus heavily on [1]. Describe only [1]'s facial expression or simple pose.
+2. Refer to the subject in the reference image [1] as "[1]" (e.g. 'A portrait of [1] in a red kit looking determined').
+3. DO NOT mention their real name ("${matchedAsset.name}") in the prompt, only refer to them as "[1]".
+4. The subject [1] must wear the Liverpool FC bright red Nike kit (or manager attire if a manager).
+5. Photorealistic DSLR sports photography, dramatic stadium lighting, bokeh background.
+6. NO text, numbers, logos, or watermarks.
+7. Match the emotional tone of this news: ${title}
+
+Output ONLY the final prompt, no explanation.`}]
+					}],
+					generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+				}
+			})
+
+			imagePrompt = translateRes.data.candidates[0].content.parts[0].text.trim()
+
+			// Replace any leaked name parts in case Gemini ignored the rule
+			const nameParts = matchedAsset.name.toLowerCase().split(' ').filter(p => p.length > 2)
+			for (const part of nameParts) {
+				const regex = new RegExp(part, 'gi')
+				imagePrompt = imagePrompt.replace(regex, '[1]')
 			}
-		})
+			console.log(`🎨 Image prompt with reference [1]: ${imagePrompt}`)
 
-		const imagePrompt = translateRes.data.candidates[0].content.parts[0].text.trim()
-		console.log(`🎨 Image prompt: ${imagePrompt}`)
-
-		// Generate image with Imagen
-		const imagenUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/imagen-3.0-generate-001:predict`
-
-		const imagenRes = await client.request({
-			url: imagenUrl,
-			method: 'POST',
-			data: {
-				instances: [{ prompt: imagePrompt }],
+			requestData = {
+				instances: [{
+					prompt: imagePrompt,
+					referenceImages: [
+						{
+							referenceId: 1,
+							referenceType: 'REFERENCE_TYPE_SUBJECT',
+							referenceImage: {
+								bytesBase64Encoded: matchedAsset.base64
+							}
+						}
+					]
+				}],
 				parameters: {
 					sampleCount: 1,
 					aspectRatio: '1:1',
 					safetySetting: 'block_most',
 				}
 			}
+		} else {
+			console.log('ℹ️ No asset reference matched. Using standard text-to-image.')
+			imagenUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/imagen-3.0-generate-001:predict`
+
+			const translateUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
+			const translateRes = await client.request({
+				url: translateUrl,
+				method: 'POST',
+				data: {
+					contents: [{
+						role: 'user',
+						parts: [{
+							text: `You are a professional sports photographer AI. Create a cinematic English image prompt (max 60 words) for a Liverpool FC news article.
+
+STRICT RULES — follow every rule or the image will be rejected:
+1. DO NOT mention any real person's name (no Salah, Slot, Van Dijk, etc.)
+2. DO NOT generate faces of real people — use silhouettes, back views, or crowd shots instead
+3. Focus ONLY on: stadium atmosphere, football action, crowd emotion, trophy, ball, boots, or pitch
+4. Liverpool FC bright red Nike 2025-26 kit, Anfield stadium with expanded Anfield Road end
+5. Photorealistic DSLR sports photography, dramatic stadium lighting, bokeh background
+6. NO text, numbers, scoreboards, logos, or watermarks in the image
+7. Match the emotional tone of this news: ${title}
+
+Good examples:
+- "A red-shirted player's boots striking a ball, dramatic Anfield floodlights, bokeh crowd background"
+- "Anfield stadium aerial view at night, floodlights blazing, packed crowd in red"
+- "Close-up of a Liverpool FC red jersey chest badge, rain droplets, dramatic lighting"
+
+Output ONLY the final prompt, no explanation.`}]
+					}],
+					generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+				}
+			})
+
+			imagePrompt = translateRes.data.candidates[0].content.parts[0].text.trim()
+			console.log(`🎨 Standard Image prompt: ${imagePrompt}`)
+
+			if (refBase64) {
+				requestData = {
+					instances: [{
+						prompt: imagePrompt,
+						image: {
+							bytesBase64Encoded: refBase64,
+							mimeType: mimeType
+						}
+					}],
+					parameters: {
+						sampleCount: 1,
+						aspectRatio: '1:1',
+						safetySetting: 'block_most',
+					}
+				}
+			} else {
+				requestData = {
+					instances: [{ prompt: imagePrompt }],
+					parameters: {
+						sampleCount: 1,
+						aspectRatio: '1:1',
+						safetySetting: 'block_most',
+					}
+				}
+			}
+		}
+
+		// Generate image with Imagen
+		const imagenRes = await client.request({
+			url: imagenUrl,
+			method: 'POST',
+			data: requestData
 		})
 
 		const base64Image = imagenRes.data.predictions[0].bytesBase64Encoded
@@ -225,12 +490,27 @@ async function generateImage(title, thaiSummary) {
 }
 
 // Generate video script in Thai using Gemini
-async function generateVideoScript(title, thaiSummary) {
+async function generateVideoScript(title, thaiSummary, matchedAsset = null) {
 	try {
 		const client = await auth.getClient()
 		const projectId = await auth.getProjectId()
 		const location = 'us-central1'
 		const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
+
+		let videoPromptRules = "A short English cinematic B-roll video description (max 40 words). ABSOLUTE RULES: NO human faces, NO people, NO players, NO text, NO letters, NO words, NO numbers, NO logos, NO crests, NO signs, NO boards, NO banners. ONLY show: football on grass, stadium lights, crowd blur, rain on pitch, boots on grass, net rippling, or atmospheric wide stadium shots. Photorealistic, cinematic, dramatic lighting."
+		if (matchedAsset) {
+			const subjectType = matchedAsset.type === 'staff' ? 'the manager in the image' : 'the player in the image'
+			videoPromptRules = `A short English cinematic description (max 40 words) focusing on the action of the subject.
+STRICT RULES:
+1. Refer to the subject in the reference image as "${subjectType}". DO NOT mention their real name ("${matchedAsset.name}").
+2. Focus the prompt entirely on minimal, natural movements of ${subjectType} (e.g., blinking, looking determined, turning head slightly, breathing, or smiling) to preserve their likeness.
+3. Describe a simple camera movement (e.g., a slow-motion close-up panning shot, or subtle dolly zoom).
+4. DO NOT describe details already visible in the reference image (like clothing, face shape, hair) to prevent the model from redrawing them.
+5. ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests.
+6. Must be atmospheric, photorealistic, cinematic.`
+		} else {
+			videoPromptRules = `A short English cinematic B-roll description matching the news topic. STRICT RULES: NO human faces, NO specific players, ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests, NO scarves with writing. E.g. if press conference: 'Cinematic close up of microphones on a red table'. If transfer rumor: 'A red pen signing a contract'. If match: 'Cinematic wide shot of Anfield stadium at night'. Must be atmospheric, photorealistic.`
+		}
 
 		const response = await client.request({
 			url,
@@ -246,7 +526,7 @@ async function generateVideoScript(title, thaiSummary) {
 
 format ที่ต้องการ (JSON เท่านั้น ไม่มีคำอธิบาย):
 {
-  "videoPrompt": "A short English cinematic B-roll description matching the news topic. STRICT RULES: NO human faces, NO specific players, ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests, NO scarves with writing. E.g. if press conference: 'Cinematic close up of microphones on a red table'. If transfer rumor: 'A red pen signing a contract'. If match: 'Cinematic wide shot of Anfield stadium at night'. Must be atmospheric, photorealistic.",
+  "videoPrompt": "${videoPromptRules}",
   "subtitles": [
     { "start": 0, "end": 5, "text": "ข้อความภาษาไทย บรรทัดที่ 1" },
     { "start": 5, "end": 10, "text": "ข้อความภาษาไทย บรรทัดที่ 2" },
@@ -269,23 +549,39 @@ format ที่ต้องการ (JSON เท่านั้น ไม่�
 }
 
 // Generate video using Veo via Vertex AI
-async function generateVideo(videoPrompt) {
+async function generateVideo(videoPrompt, refImageBase64 = null) {
 	try {
 		const { GoogleGenAI } = await import('@google/genai')
 		const client = new GoogleGenAI({ vertexai: true, project: 'devakorn-creator-ai', location: 'us-central1' })
 
 		console.log('🎬 Submitting video job to Veo...')
-		let operation = await client.models.generateVideos({
+		const requestParams = {
 			model: 'veo-2.0-generate-001',
 			prompt: videoPrompt,
 			config: { aspectRatio: '9:16', durationSeconds: 8 },
-		})
+		}
+
+		if (refImageBase64) {
+			console.log('ℹ️ Attaching reference image to Veo video job...')
+			requestParams.input = {
+				image: {
+					imageBytes: refImageBase64,
+					mimeType: 'image/webp'
+				}
+			}
+		}
+
+		let operation = await client.models.generateVideos(requestParams)
 
 		console.log('⏳ Waiting for Veo to render...')
 		while (!operation.done) {
 			await new Promise(resolve => setTimeout(resolve, 15000))
 			operation = await client.operations.get({ operation })
 			console.log('⏳ Still rendering...')
+		}
+
+		if (operation.error) {
+			throw new Error(`Veo operation failed: ${JSON.stringify(operation.error)}`)
 		}
 
 		const videoData = operation.response?.generatedVideos?.[0]?.video
@@ -359,7 +655,7 @@ async function burnSubtitlesAndAudio(videoBase64, subtitles, audioBase64) {
 		const bOutputPath = path.basename(outputPath)
 
 		let ffmpegCmd = ''
-		
+
 		if (audioBase64) {
 			ffmpegCmd = `ffmpeg -stream_loop -1 -i "${bInputPath}" -i "${bAudioPath}" -map 0:v:0 -map 1:a:0 -c:v libx264 -c:a aac -shortest "${bOutputPath}" -y`
 		} else {
@@ -452,10 +748,13 @@ async function runReelBot() {
 			return
 		}
 
+		// Check matched asset reference
+		const matchedAsset = getMatchedAsset(latest.title, null)
+
 		// Generate Thai summary and video script
 		console.log('🤖 Generating video script...')
 		const thaiSummary = await summarizeThai(latest.title, latest.description)
-		const script = await generateVideoScript(latest.title, thaiSummary)
+		const script = await generateVideoScript(latest.title, thaiSummary, matchedAsset)
 
 		if (!script) {
 			console.warn('⚠️ No script generated')
@@ -474,7 +773,7 @@ async function runReelBot() {
 
 		// Generate video with Veo
 		console.log('🎬 Generating video with Veo...')
-		const videoBase64 = await generateVideo(script.videoPrompt)
+		const videoBase64 = await generateVideo(script.videoPrompt, matchedAsset ? matchedAsset.base64 : null)
 
 		if (!videoBase64) {
 			await prisma.post.update({ where: { id: post.id }, data: { status: 'FAILED' } })
@@ -715,29 +1014,63 @@ async function runBot() {
 	}
 }
 
-// News posts: (Asia/Bangkok)
-cron.schedule('0 8 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 11 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 12 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 14 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 16 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 18 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 20 * * *', runBot, { timezone: "Asia/Bangkok" })
-cron.schedule('0 22 * * *', runBot, { timezone: "Asia/Bangkok" })
+let lastNewsRunTime = null
+let lastReelsRunTime = null
 
-// Reels posts: (Asia/Bangkok)
-cron.schedule('30 9 * * *', runReelBot, { timezone: "Asia/Bangkok" })
-cron.schedule('30 13 * * *', runReelBot, { timezone: "Asia/Bangkok" })
-cron.schedule('30 17 * * *', runReelBot, { timezone: "Asia/Bangkok" })
-cron.schedule('30 19 * * *', runReelBot, { timezone: "Asia/Bangkok" })
-cron.schedule('30 21 * * *', runReelBot, { timezone: "Asia/Bangkok" })
-cron.schedule('30 23 * * *', runReelBot, { timezone: "Asia/Bangkok" })
+async function checkAndRunSchedules() {
+	try {
+		const formatter = new Intl.DateTimeFormat('en-US', {
+			timeZone: 'Asia/Bangkok',
+			hour: '2-digit',
+			minute: '2-digit',
+			hourCycle: 'h23'
+		})
+		const timeStr = formatter.format(new Date())
+		const dateStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Bangkok' })
+		const runKey = `${dateStr} ${timeStr}`
+
+		let newsTimes = ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
+		let reelsTimes = ['09:30', '13:30', '17:30', '19:30', '21:30', '23:30']
+
+		try {
+			const dbNewsSetting = await prisma.setting.findUnique({ where: { key: 'news_schedule' } })
+			if (dbNewsSetting) {
+				newsTimes = JSON.parse(dbNewsSetting.value)
+			}
+			const dbReelsSetting = await prisma.setting.findUnique({ where: { key: 'reels_schedule' } })
+			if (dbReelsSetting) {
+				reelsTimes = JSON.parse(dbReelsSetting.value)
+			}
+		} catch (dbErr) {
+			console.warn(`⚠️ Failed to fetch schedules from database: ${dbErr.message}. Using defaults.`)
+		}
+
+		// Check News
+		if (newsTimes.includes(timeStr)) {
+			if (lastNewsRunTime !== runKey) {
+				lastNewsRunTime = runKey
+				console.log(`⏰ [Scheduler] Matching News schedule at ${timeStr}. Running runBot...`)
+				runBot()
+			}
+		}
+
+		// Check Reels
+		if (reelsTimes.includes(timeStr)) {
+			if (lastReelsRunTime !== runKey) {
+				lastReelsRunTime = runKey
+				console.log(`⏰ [Scheduler] Matching Reels schedule at ${timeStr}. Running runReelBot...`)
+				runReelBot()
+			}
+		}
+	} catch (err) {
+		console.error(`❌ Error in schedule checker: ${err.message}`)
+	}
+}
+
+// Check every minute
+cron.schedule('* * * * *', checkAndRunSchedules, { timezone: "Asia/Bangkok" })
 
 // Auto-refresh token every 50 days
 cron.schedule('0 0 */50 * *', refreshFacebookToken, { timezone: "Asia/Bangkok" })
 
 console.log('🔴 The Kop Bot started...')
-// runBot()
-
-// Temporary test — remove after testing
-// runReelBot()
