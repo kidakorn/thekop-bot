@@ -351,7 +351,7 @@ Output ONLY the final prompt, no explanation.`}]
 				parameters: {
 					sampleCount: 1,
 					aspectRatio: '1:1',
-					safetySetting: 'block_most',
+					personGeneration: 'ALLOW_ADULT'
 				}
 			}
 		} else {
@@ -396,7 +396,7 @@ Output ONLY the final prompt, no explanation.`}]
 				parameters: {
 					sampleCount: 1,
 					aspectRatio: '1:1',
-					safetySetting: 'block_most',
+					personGeneration: 'ALLOW_ADULT'
 				}
 			}
 		}
@@ -893,17 +893,18 @@ async function runBot() {
 
 		// Try article image from ANY source first, then 50/50 AI mix
 		let imageBase64 = null
+		let articleBase64 = null
 		const articleImageUrl = await getArticleImage(latest.link)
 		if (articleImageUrl) {
 			try {
 				const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
-				const articleBase64 = Buffer.from(imgRes.data).toString('base64')
+				articleBase64 = Buffer.from(imgRes.data).toString('base64')
 				// 50/50 chance between article image and AI generated
 				if (Math.random() < 0.5) {
 					imageBase64 = articleBase64
-					console.log(`✅ Using article image`)
+					console.log(`✅ Using article image (random mix)`)
 				} else {
-					console.log('🎨 Using AI image (random mix)')
+					console.log('🎨 Attempting AI image (random mix)')
 				}
 			} catch (err) {
 				console.warn('⚠️ Failed to download article image')
@@ -913,6 +914,10 @@ async function runBot() {
 		if (!imageBase64) {
 			console.log('🎨 Generating AI image...')
 			imageBase64 = await generateImage(latest.title, thaiSummary)
+			if (!imageBase64 && articleBase64) {
+				console.warn('⚠️ AI Image failed, falling back to original article image.')
+				imageBase64 = articleBase64
+			}
 		}
 
 		console.log(`📢 Posting...`)

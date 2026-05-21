@@ -94,10 +94,12 @@ export default function DashboardPage() {
     if (activePage !== 'dashboard') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:4000/api/logs')
+        const res = await fetch('/api/logs')
         if (res.ok) {
           const data = await res.json()
-          setLiveLogs(data)
+          if (Array.isArray(data)) {
+            setLiveLogs(data)
+          }
         }
       } catch(e) {}
     }, 2000)
