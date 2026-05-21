@@ -90,18 +90,25 @@ export default function DashboardPage() {
   const [triggeringReels, setTriggeringReels] = useState(false)
   const [liveLogs, setLiveLogs] = useState<string[]>([])
 
+  const [liveLogsError, setLiveLogsError] = useState<string | null>(null)
+
   useEffect(() => {
     if (activePage !== 'dashboard') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/logs')
+        const res = await fetch(`/api/logs?t=${Date.now()}`)
         if (res.ok) {
           const data = await res.json()
           if (Array.isArray(data)) {
             setLiveLogs(data)
+            setLiveLogsError(null)
           }
+        } else {
+          setLiveLogsError(`API Error: ${res.status}`)
         }
-      } catch(e) {}
+      } catch(e) {
+        setLiveLogsError('Network connection failed')
+      }
     }, 2000)
     return () => clearInterval(interval)
   }, [activePage])
@@ -886,7 +893,9 @@ export default function DashboardPage() {
                 fontSize: 12, color: '#e6edf3', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 4
               }}
               ref={(el) => { if (el && autoScrollLogs) el.scrollTop = el.scrollHeight; }}>
-                {liveLogs.length === 0 ? (
+                {liveLogsError ? (
+                  <div style={{ color: '#ff5f56', fontStyle: 'italic' }}>⚠️ {liveLogsError}</div>
+                ) : liveLogs.length === 0 ? (
                   <div style={{ color: '#8b949e', fontStyle: 'italic' }}>Waiting for logs...</div>
                 ) : (
                   liveLogs
