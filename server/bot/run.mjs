@@ -894,7 +894,6 @@ async function runBot() {
 			},
 		})
 
-		// Try article image from ANY source first, then 50/50 AI mix
 		let imageBase64 = null
 		let articleBase64 = null
 		const articleImageUrl = await getArticleImage(latest.link)
@@ -902,24 +901,27 @@ async function runBot() {
 			try {
 				const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
 				articleBase64 = Buffer.from(imgRes.data).toString('base64')
-				// 50/50 chance between article image and AI generated
-				if (Math.random() < 0.5) {
-					imageBase64 = articleBase64
-					console.log(`✅ Using article image (random mix)`)
-				} else {
-					console.log('🎨 Attempting AI image (random mix)')
-				}
 			} catch (err) {
 				console.warn('⚠️ Failed to download article image')
 			}
 		}
 
-		if (!imageBase64) {
-			console.log('🎨 Generating AI image...')
+		// Check if we have a specific player/asset mentioned in the news
+		const matchedAsset = getMatchedAsset(latest.title, thaiSummary)
+
+		if (matchedAsset) {
+			console.log(`🎨 Found reference (${matchedAsset.name}), generating AI image...`)
 			imageBase64 = await generateImage(latest.title, thaiSummary)
 			if (!imageBase64 && articleBase64) {
 				console.warn('⚠️ AI Image failed, falling back to original article image.')
 				imageBase64 = articleBase64
+			}
+		} else {
+			console.log('📰 No player reference found. Using original article image.')
+			imageBase64 = articleBase64
+			if (!imageBase64) {
+				console.log('🎨 No article image available, falling back to AI generation...')
+				imageBase64 = await generateImage(latest.title, thaiSummary)
 			}
 		}
 
