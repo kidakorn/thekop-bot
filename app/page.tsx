@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import {
   BarChart as RechartsBarChart, Bar, XAxis, YAxis,
-  Tooltip as RechartsTooltip, ResponsiveContainer, Legend
+  Tooltip as RechartsTooltip, ResponsiveContainer, Legend, CartesianGrid
 } from 'recharts'
 import { PostStats } from '../types'
 
@@ -203,9 +203,19 @@ export default function DashboardPage() {
     showToast('ลบโพสต์เรียบร้อยแล้ว', 'success')
   }
 
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'POSTED' | 'PENDING' | 'FAILED'>('ALL')
+
+  function handleFilterChange(f: 'ALL' | 'POSTED' | 'PENDING' | 'FAILED') {
+    setStatusFilter(f)
+    setCurrentPage(1)
+  }
+
+  // Filter posts
+  const filteredPosts = posts.filter(p => statusFilter === 'ALL' || p.status === statusFilter)
+
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE))
-  const currentPosts = posts.slice((currentPage - 1) * POSTS_PER_PAGE, currentPage * POSTS_PER_PAGE)
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE))
+  const currentPosts = filteredPosts.slice((currentPage - 1) * POSTS_PER_PAGE, currentPage * POSTS_PER_PAGE)
 
   // Chart data (group by date)
   const chartData = (() => {
@@ -379,7 +389,7 @@ export default function DashboardPage() {
             <div className="sidebar-status-dot" />
             <div className="sidebar-status-text">
               <strong>Bot Active</strong>
-              <small>Runs 14× / day</small>
+              <small>Runs {activeSchedules.length}× / day</small>
             </div>
           </div>
         </div>
@@ -424,43 +434,63 @@ export default function DashboardPage() {
             <div className="stats-grid">
               {statsLoading ? (
                 [0,1,2,3].map(i => (
-                  <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', border: '1px solid #e8eaed', height: 88 }}>
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.5)', height: 88 }}>
                     <div className="skeleton-line" style={{ height: 11, width: '50%', marginBottom: 10 }} />
                     <div className="skeleton-line" style={{ height: 26, width: '35%' }} />
                   </div>
                 ))
               ) : (
                 <>
-                  <div className="stat-card">
-                    <div className="stat-card-icon blue"><BarChart2 size={18} /></div>
+                  <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                    <div className="stat-card-icon blue" style={{ background: 'rgba(59, 130, 246, 0.08)' }}><BarChart2 size={18} /></div>
                     <div className="stat-card-content">
                       <div className="stat-card-label">Total Posts</div>
                       <div className="stat-card-value">{stats?.total ?? 0}</div>
-                      <div className="stat-card-sub">All time</div>
+                      <div className="stat-card-sub">All time records</div>
+                    </div>
+                    <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                      <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}>
+                        <path d="M 0 20 Q 15 5, 30 25 T 60 10 T 100 15" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-card-icon green"><CheckCircle size={18} /></div>
+                  <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                    <div className="stat-card-icon green" style={{ background: 'rgba(16, 185, 129, 0.08)' }}><CheckCircle size={18} /></div>
                     <div className="stat-card-content">
                       <div className="stat-card-label">Posted</div>
                       <div className="stat-card-value">{stats?.posted ?? 0}</div>
                       <div className="stat-card-sub">{totalPostedToday} today</div>
                     </div>
+                    <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                      <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}>
+                        <path d="M 0 25 Q 15 5, 35 22 T 70 8 T 100 12" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-card-icon amber"><Clock size={18} /></div>
+                  <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                    <div className="stat-card-icon amber" style={{ background: 'rgba(245, 158, 11, 0.08)' }}><Clock size={18} /></div>
                     <div className="stat-card-content">
                       <div className="stat-card-label">Pending</div>
                       <div className="stat-card-value">{stats?.pending ?? 0}</div>
                       <div className="stat-card-sub">Awaiting publish</div>
                     </div>
+                    <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                      <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}>
+                        <path d="M 0 18 C 15 25, 30 10, 45 5 C 60 18, 80 25, 100 15" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-card-icon red"><XCircle size={18} /></div>
+                  <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                    <div className="stat-card-icon red" style={{ background: 'rgba(239, 68, 68, 0.08)' }}><XCircle size={18} /></div>
                     <div className="stat-card-content">
                       <div className="stat-card-label">Failed</div>
                       <div className="stat-card-value">{stats?.failed ?? 0}</div>
                       <div className="stat-card-sub">Need attention</div>
+                    </div>
+                    <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                      <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}>
+                        <path d="M 0 12 Q 20 28, 45 15 T 80 18 L 100 5" />
+                      </svg>
                     </div>
                   </div>
                 </>
@@ -469,12 +499,35 @@ export default function DashboardPage() {
 
             {/* Post History Table */}
             <div className="table-card">
-              <div className="table-card-header">
+              <div className="table-card-header" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: 12 }}>
                 <div>
                   <div className="table-card-title">Post History</div>
-                  <div className="table-card-meta">{posts.length} recent records</div>
+                  <div className="table-card-meta">{filteredPosts.length} matches of {posts.length} records</div>
                 </div>
-                <TrendingUp size={15} color="#8a8fa8" />
+                
+                {/* Dynamic Filters */}
+                <div style={{
+                  display: 'flex', gap: 4, background: '#f1f3f7', padding: 4, borderRadius: 10,
+                  marginLeft: isMobile ? 0 : 'auto', alignSelf: 'center', flexWrap: 'wrap'
+                }}>
+                  {(['ALL', 'POSTED', 'PENDING', 'FAILED'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => handleFilterChange(f)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600,
+                        border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                        background: statusFilter === f ? '#fff' : 'transparent',
+                        color: statusFilter === f
+                          ? (f === 'POSTED' ? '#16a34a' : f === 'FAILED' ? '#ef4444' : f === 'PENDING' ? '#d97706' : '#1a1d2e')
+                          : '#6b7280',
+                        boxShadow: statusFilter === f ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                      }}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {postsLoading ? (
@@ -487,11 +540,11 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
-              ) : posts.length === 0 ? (
+              ) : filteredPosts.length === 0 ? (
                 <div className="empty-state">
                   <FileText size={34} strokeWidth={1.5} />
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>No post history yet</div>
-                  <div style={{ fontSize: 12 }}>Posts will appear here once the bot runs</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{posts.length === 0 ? 'No post history yet' : 'No matching records'}</div>
+                  <div style={{ fontSize: 12 }}>{posts.length === 0 ? 'Posts will appear here once the bot runs' : 'Try selecting a different filter'}</div>
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
@@ -548,14 +601,14 @@ export default function DashboardPage() {
               )}
               
               {/* Pagination UI */}
-              {!postsLoading && posts.length > 0 && (
+              {!postsLoading && filteredPosts.length > 0 && (
                 <div style={{
                   padding: '12px 20px', borderTop: '1px solid #f0f2f5',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   background: '#fafbfc'
                 }}>
                   <div style={{ fontSize: 12.5, color: '#8a8fa8' }}>
-                    Showing {(currentPage - 1) * POSTS_PER_PAGE + 1} to {Math.min(currentPage * POSTS_PER_PAGE, posts.length)} of {posts.length}
+                    Showing {(currentPage - 1) * POSTS_PER_PAGE + 1} to {Math.min(currentPage * POSTS_PER_PAGE, filteredPosts.length)} of {filteredPosts.length}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
@@ -679,8 +732,8 @@ export default function DashboardPage() {
         {activePage === 'analytics' && (
           <div className="page-body">
             <div className="stats-grid" style={{ marginBottom: 20 }}>
-              <div className="stat-card">
-                <div className="stat-card-icon green"><CheckCircle size={18} /></div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <div className="stat-card-icon green" style={{ background: 'rgba(16, 185, 129, 0.08)' }}><CheckCircle size={18} /></div>
                 <div className="stat-card-content">
                   <div className="stat-card-label">Success Rate</div>
                   <div className="stat-card-value">
@@ -690,25 +743,40 @@ export default function DashboardPage() {
                   </div>
                   <div className="stat-card-sub">Posted / Total</div>
                 </div>
+                <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                  <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}>
+                    <path d="M 0 25 Q 15 5, 35 22 T 70 8 T 100 12" />
+                  </svg>
+                </div>
               </div>
-              <div className="stat-card">
-                <div className="stat-card-icon blue"><BarChart2 size={18} /></div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                <div className="stat-card-icon blue" style={{ background: 'rgba(59, 130, 246, 0.08)' }}><BarChart2 size={18} /></div>
                 <div className="stat-card-content">
                   <div className="stat-card-label">Posted Today</div>
                   <div className="stat-card-value">{totalPostedToday}</div>
-                  <div className="stat-card-sub">of 14 scheduled</div>
+                  <div className="stat-card-sub">of {activeSchedules.length} scheduled</div>
+                </div>
+                <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                  <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}>
+                    <path d="M 0 20 Q 15 5, 30 25 T 60 10 T 90 20 L 100 15" />
+                  </svg>
                 </div>
               </div>
-              <div className="stat-card">
-                <div className="stat-card-icon amber"><Clock size={18} /></div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                <div className="stat-card-icon amber" style={{ background: 'rgba(245, 158, 11, 0.08)' }}><Clock size={18} /></div>
                 <div className="stat-card-content">
                   <div className="stat-card-label">Pending Queue</div>
                   <div className="stat-card-value">{stats?.pending ?? 0}</div>
-                  <div className="stat-card-sub">Awaiting</div>
+                  <div className="stat-card-sub">Awaiting publish</div>
+                </div>
+                <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                  <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}>
+                    <path d="M 0 18 C 15 25, 30 10, 45 5 C 60 18, 80 25, 100 15" />
+                  </svg>
                 </div>
               </div>
-              <div className="stat-card">
-                <div className="stat-card-icon red"><XCircle size={18} /></div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                <div className="stat-card-icon red" style={{ background: 'rgba(239, 68, 68, 0.08)' }}><XCircle size={18} /></div>
                 <div className="stat-card-content">
                   <div className="stat-card-label">Fail Rate</div>
                   <div className="stat-card-value">
@@ -717,6 +785,11 @@ export default function DashboardPage() {
                       : '—'}
                   </div>
                   <div className="stat-card-sub">Failed / Total</div>
+                </div>
+                <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
+                  <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}>
+                    <path d="M 0 12 Q 20 28, 45 15 T 80 18 L 100 5" />
+                  </svg>
                 </div>
               </div>
             </div>
@@ -731,17 +804,32 @@ export default function DashboardPage() {
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorPosted" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.85}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.2}/>
+                          </linearGradient>
+                          <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.85}/>
+                            <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.2}/>
+                          </linearGradient>
+                          <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.85}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                         <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8a8fa8' }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 11, fill: '#8a8fa8' }} axisLine={false} tickLine={false} allowDecimals={false} />
                         <RechartsTooltip
-                          contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 30px rgba(0,0,0,0.08)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}
                           itemStyle={{ fontSize: 12, fontWeight: 600 }}
                           labelStyle={{ fontSize: 11, color: '#8a8fa8', marginBottom: 4 }}
                         />
                         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} iconType="circle" iconSize={8} />
-                        <Bar dataKey="POSTED" name="Posted" stackId="a" fill="#16a34a" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="PENDING" name="Pending" stackId="a" fill="#d97706" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="FAILED" name="Failed" stackId="a" fill="#b91c1c" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="POSTED" name="Posted" stackId="a" fill="url(#colorPosted)" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="PENDING" name="Pending" stackId="a" fill="url(#colorPending)" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="FAILED" name="Failed" stackId="a" fill="url(#colorFailed)" radius={[4, 4, 0, 0]} />
                       </RechartsBarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -770,10 +858,11 @@ export default function DashboardPage() {
                         <span style={{ fontWeight: 600, fontSize: 13.5 }}>{row.label}</span>
                         <span style={{ fontWeight: 700, fontSize: 13.5, color: row.color }}>{row.value} ({pct}%)</span>
                       </div>
-                      <div style={{ height: 8, background: '#f0f2f5', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: 8, background: '#eef2f6', borderRadius: 99, overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}>
                         <div style={{
-                          height: '100%', width: `${pct}%`, background: row.color,
-                          borderRadius: 99, transition: 'width 0.6s ease',
+                          height: '100%', width: `${pct}%`,
+                          background: `linear-gradient(90deg, ${row.color} 0%, ${row.color}cc 100%)`,
+                          borderRadius: 99, transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
                         }} />
                       </div>
                     </div>

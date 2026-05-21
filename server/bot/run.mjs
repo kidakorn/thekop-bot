@@ -497,19 +497,12 @@ async function generateVideoScript(title, thaiSummary, matchedAsset = null) {
 		const location = 'us-central1'
 		const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`
 
-		let videoPromptRules = "A short English cinematic B-roll video description (max 40 words). ABSOLUTE RULES: NO human faces, NO people, NO players, NO text, NO letters, NO words, NO numbers, NO logos, NO crests, NO signs, NO boards, NO banners. ONLY show: football on grass, stadium lights, crowd blur, rain on pitch, boots on grass, net rippling, or atmospheric wide stadium shots. Photorealistic, cinematic, dramatic lighting."
-		if (matchedAsset) {
-			const subjectType = matchedAsset.type === 'staff' ? 'the manager in the image' : 'the player in the image'
-			videoPromptRules = `A short English cinematic description (max 40 words) focusing on the action of the subject.
-STRICT RULES:
-1. Refer to the subject in the reference image as "${subjectType}". DO NOT mention their real name ("${matchedAsset.name}").
-2. Focus the prompt entirely on minimal, natural movements of ${subjectType} (e.g., blinking, looking determined, turning head slightly, breathing, or smiling) to preserve their likeness.
-3. Describe a simple camera movement (e.g., a slow-motion close-up panning shot, or subtle dolly zoom).
-4. DO NOT describe details already visible in the reference image (like clothing, face shape, hair) to prevent the model from redrawing them.
-5. ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests.
-6. Must be atmospheric, photorealistic, cinematic.`
+		// Always use B-roll — never generate human faces (always looks wrong)
+		let videoPromptRules
+		if (matchedAsset && matchedAsset.type === 'stadium') {
+			videoPromptRules = `Cinematic B-roll of Anfield stadium at night, floodlights blazing, packed red crowd, slow camera pan. ABSOLUTELY NO TEXT, NO letters, NO logos. Photorealistic, atmospheric.`
 		} else {
-			videoPromptRules = `A short English cinematic B-roll description matching the news topic. STRICT RULES: NO human faces, NO specific players, ABSOLUTELY NO TEXT, NO letters, NO words, NO logos, NO crests, NO scarves with writing. E.g. if press conference: 'Cinematic close up of microphones on a red table'. If transfer rumor: 'A red pen signing a contract'. If match: 'Cinematic wide shot of Anfield stadium at night'. Must be atmospheric, photorealistic.`
+			videoPromptRules = `A short English cinematic B-roll video (max 40 words) matching the news mood. ABSOLUTE RULES: NO human faces, NO people, NO players, NO coaches, NO text, NO letters, NO words, NO numbers, NO logos, NO crests, NO signs, NO banners. ONLY show: football rolling on wet grass, stadium floodlights at night, empty Anfield red seats, rain on pitch, close-up of football boots, net rippling, crowd silhouettes from behind. Photorealistic, cinematic slow motion, dramatic lighting.`
 		}
 
 		const response = await client.request({
@@ -524,9 +517,11 @@ STRICT RULES:
 หัวข้อ: ${title}
 สรุป: ${thaiSummary}
 
-format ที่ต้องการ (JSON เท่านั้น ไม่มีคำอธิบาย):
+Video prompt rules: ${videoPromptRules}
+
+ตอบเป็น JSON เท่านั้น ไม่มีคำอธิบาย ไม่มี markdown:
 {
-  "videoPrompt": "${videoPromptRules}",
+  "videoPrompt": "ใส่ video prompt ภาษาอังกฤษตาม rules ด้านบน",
   "subtitles": [
     { "start": 0, "end": 5, "text": "ข้อความภาษาไทย บรรทัดที่ 1" },
     { "start": 5, "end": 10, "text": "ข้อความภาษาไทย บรรทัดที่ 2" },
@@ -968,18 +963,22 @@ async function runBot() {
 			},
 		})
 
-		// Use official article image for liverpoolfc.com, fallback to AI
+		// Try article image from ANY source first, then 50/50 AI mix
 		let imageBase64 = null
-		if (latest.link.includes('liverpoolfc.com')) {
-			const articleImageUrl = await getArticleImage(latest.link)
-			if (articleImageUrl) {
-				try {
-					const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
-					imageBase64 = Buffer.from(imgRes.data).toString('base64')
-					console.log(`✅ Using official article image`)
-				} catch (err) {
-					console.warn('⚠️ Failed to download article image')
+		const articleImageUrl = await getArticleImage(latest.link)
+		if (articleImageUrl) {
+			try {
+				const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
+				const articleBase64 = Buffer.from(imgRes.data).toString('base64')
+				// 50/50 chance between article image and AI generated
+				if (Math.random() < 0.5) {
+					imageBase64 = articleBase64
+					console.log(`✅ Using article image`)
+				} else {
+					console.log('🎨 Using AI image (random mix)')
 				}
+			} catch (err) {
+				console.warn('⚠️ Failed to download article image')
 			}
 		}
 
