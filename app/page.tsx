@@ -107,7 +107,7 @@ export default function DashboardPage() {
   async function handleTriggerNews() {
     setTriggeringNews(true)
     try {
-      const res = await fetch('http://localhost:4000/api/run-news', { method: 'POST' })
+      const res = await fetch('/api/run-news', { method: 'POST' })
       if (res.ok) showToast('🚀 Bot started (News)', 'success')
       else showToast('Failed to start', 'error')
     } catch(e) { showToast('Server offline', 'error') }
@@ -117,7 +117,7 @@ export default function DashboardPage() {
   async function handleTriggerReels() {
     setTriggeringReels(true)
     try {
-      const res = await fetch('http://localhost:4000/api/run-reels', { method: 'POST' })
+      const res = await fetch('/api/run-reels', { method: 'POST' })
       if (res.ok) showToast('🎬 Bot started (Reels)', 'success')
       else showToast('Failed to start', 'error')
     } catch(e) { showToast('Server offline', 'error') }
