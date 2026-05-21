@@ -13,6 +13,8 @@ export async function GET() {
 				fbPostId: true,
 				postedAt: true,
 				createdAt: true,
+				content: true,
+				link: true,
 			},
 		})
 

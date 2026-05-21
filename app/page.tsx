@@ -6,12 +6,15 @@ import {
   BarChart2, CheckCircle, XCircle, Clock, RefreshCw,
   LayoutDashboard, Settings, Rss, Activity, Trash2,
   FileText, TrendingUp, Radio, ChevronLeft, Menu, X,
-  ExternalLink, ChevronRight,
+  ExternalLink, ChevronRight, Moon, Sun, Search, ArrowUpDown, Filter, Play, Pause, AlertTriangle
 } from 'lucide-react'
 import {
   BarChart as RechartsBarChart, Bar, XAxis, YAxis,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend, CartesianGrid
 } from 'recharts'
+import { motion, AnimatePresence } from 'framer-motion'
+import { format, formatDistanceToNow } from 'date-fns'
+import { th } from 'date-fns/locale'
 import { PostStats } from '../types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -24,6 +27,7 @@ interface Post {
   postedAt: string | null
   createdAt: string
   link?: string
+  content?: string
 }
 
 /** Strip HTML tags from a string */
@@ -60,6 +64,65 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
+  const [logFilter, setLogFilter] = useState<'ALL' | 'ERROR' | 'SUCCESS'>('ALL')
+  const [autoScrollLogs, setAutoScrollLogs] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light'
+    setTheme(savedTheme as 'light' | 'dark')
+    if (savedTheme === 'dark') document.documentElement.classList.add('dark')
+  }, [])
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+    if (newTheme === 'dark') document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
+  }
+  
+  const [triggeringNews, setTriggeringNews] = useState(false)
+  const [triggeringReels, setTriggeringReels] = useState(false)
+  const [liveLogs, setLiveLogs] = useState<string[]>([])
+
+  useEffect(() => {
+    if (activePage !== 'dashboard') return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/logs')
+        if (res.ok) {
+          const data = await res.json()
+          setLiveLogs(data)
+        }
+      } catch(e) {}
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [activePage])
+
+  async function handleTriggerNews() {
+    setTriggeringNews(true)
+    try {
+      const res = await fetch('http://localhost:4000/api/run-news', { method: 'POST' })
+      if (res.ok) showToast('🚀 Bot started (News)', 'success')
+      else showToast('Failed to start', 'error')
+    } catch(e) { showToast('Server offline', 'error') }
+    setTimeout(() => setTriggeringNews(false), 2000)
+  }
+
+  async function handleTriggerReels() {
+    setTriggeringReels(true)
+    try {
+      const res = await fetch('http://localhost:4000/api/run-reels', { method: 'POST' })
+      if (res.ok) showToast('🎬 Bot started (Reels)', 'success')
+      else showToast('Failed to start', 'error')
+    } catch(e) { showToast('Server offline', 'error') }
+    setTimeout(() => setTriggeringReels(false), 2000)
+  }
 
   useEffect(() => {
     const check = () => {
@@ -79,12 +142,15 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ news_schedule: string[]; reels_schedule: string[] }>('/api/settings', fetcher)
+    useSWR<{ news_schedule: string[]; reels_schedule: string[]; rss_feeds?: {name: string, url: string}[] }>('/api/settings', fetcher)
 
   const [editedNews, setEditedNews] = useState<string[]>([])
   const [editedReels, setEditedReels] = useState<string[]>([])
+  const [editedFeeds, setEditedFeeds] = useState<{name: string, url: string}[]>([])
   const [newNewsTime, setNewNewsTime] = useState('12:00')
   const [newReelTime, setNewReelTime] = useState('12:00')
+  const [newFeedName, setNewFeedName] = useState('')
+  const [newFeedUrl, setNewFeedUrl] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -92,6 +158,9 @@ export default function DashboardPage() {
     if (settingsData) {
       setEditedNews(settingsData.news_schedule)
       setEditedReels(settingsData.reels_schedule)
+      if (settingsData.rss_feeds) {
+        setEditedFeeds(settingsData.rss_feeds)
+      }
     }
   }, [settingsData])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -120,6 +189,20 @@ export default function DashboardPage() {
     setEditedReels(editedReels.filter(t => t !== time))
   }
 
+  function addFeed() {
+    if (newFeedName.trim() && newFeedUrl.trim()) {
+      setEditedFeeds([...editedFeeds, { name: newFeedName.trim(), url: newFeedUrl.trim() }])
+      setNewFeedName('')
+      setNewFeedUrl('')
+    } else {
+      showToast('กรุณากรอกชื่อและ URL ให้ครบถ้วน', 'error')
+    }
+  }
+
+  function removeFeed(index: number) {
+    setEditedFeeds(editedFeeds.filter((_, i) => i !== index))
+  }
+
   async function handleSaveSettings() {
     setSavingSettings(true)
     try {
@@ -128,7 +211,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           news_schedule: editedNews,
-          reels_schedule: editedReels
+          reels_schedule: editedReels,
+          rss_feeds: editedFeeds
         })
       })
 
@@ -211,11 +295,40 @@ export default function DashboardPage() {
   }
 
   // Filter posts
-  const filteredPosts = posts.filter(p => statusFilter === 'ALL' || p.status === statusFilter)
+  const filteredPosts = posts.filter(p => {
+    const matchStatus = statusFilter === 'ALL' || p.status === statusFilter
+    const matchSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || (p.fbPostId && p.fbPostId.includes(searchQuery))
+    return matchStatus && matchSearch
+  }).sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime()
+    const dateB = new Date(b.createdAt).getTime()
+    return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+  })
 
   // Pagination logic
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE))
   const currentPosts = filteredPosts.slice((currentPage - 1) * POSTS_PER_PAGE, currentPage * POSTS_PER_PAGE)
+
+  // Analytics Data
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    return {
+      name: format(d, 'dd MMM', { locale: th }),
+      dateStr: format(d, 'yyyy-MM-dd'),
+      Posted: 0,
+      Failed: 0,
+    }
+  })
+
+  posts.forEach(p => {
+    const dStr = format(new Date(p.createdAt), 'yyyy-MM-dd')
+    const dayData = last7Days.find(d => d.dateStr === dStr)
+    if (dayData) {
+      if (p.status === 'POSTED') dayData.Posted++
+      else if (p.status === 'FAILED') dayData.Failed++
+    }
+  })
 
   // Chart data (group by date)
   const chartData = (() => {
@@ -242,7 +355,7 @@ export default function DashboardPage() {
     isMobile ? 'sidebar-mobile' : '',
   ].filter(Boolean).join(' ')
 
-  const RSS_FEEDS = [
+  const RSS_FEEDS = settingsData?.rss_feeds || [
     { name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml' },
     { name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss' },
     { name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news' },
@@ -256,7 +369,7 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
           background: toast.type === 'success' ? '#16a34a' : '#C8102E',
-          color: '#fff', padding: '12px 20px', borderRadius: 8,
+          color: 'var(--bg-card)', padding: '12px 20px', borderRadius: 8,
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           display: 'flex', alignItems: 'center', gap: 8,
           animation: 'slideUp 0.3s ease-out'
@@ -285,10 +398,10 @@ export default function DashboardPage() {
           background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)',
         }}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, width: '90%', maxWidth: 360,
+            background: 'var(--bg-card)', borderRadius: 16, padding: 24, width: '90%', maxWidth: 360,
             boxShadow: '0 10px 25px rgba(0,0,0,0.2)', animation: 'slideUp 0.2s ease-out'
           }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f1117', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Trash2 color="#C8102E" size={20} />
               ยืนยันการลบโพสต์
             </h3>
@@ -298,13 +411,13 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#4a4f6a', background: '#f0f2f5', border: 'none', cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#4a4f6a', background: 'var(--border-light)', border: 'none', cursor: 'pointer' }}
               >
                 ยกเลิก
               </button>
               <button
                 onClick={handleDelete}
-                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#fff', background: '#C8102E', border: 'none', cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, color: 'var(--bg-card)', background: '#C8102E', border: 'none', cursor: 'pointer' }}
               >
                 ลบโพสต์
               </button>
@@ -330,7 +443,7 @@ export default function DashboardPage() {
         {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">
-            <Radio size={17} color="#fff" />
+            <Radio size={17} color="var(--bg-card)" />
           </div>
           <div className="sidebar-logo-text">
             <h1>The Kop Bot</h1>
@@ -343,7 +456,7 @@ export default function DashboardPage() {
                 marginLeft: 'auto', background: 'rgba(255,255,255,0.12)',
                 border: 'none', borderRadius: 7, width: 28, height: 28,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: '#fff', flexShrink: 0,
+                cursor: 'pointer', color: 'var(--bg-card)', flexShrink: 0,
               }}
             >
               <X size={14} />
@@ -396,7 +509,7 @@ export default function DashboardPage() {
       </aside>
 
       {/* ── Main ── */}
-      <div className={mainCls} style={{ flex: 1 }}>
+      <main className={mainCls} style={{ flex: 1 }}>
         {/* Topbar */}
         <div className="topbar">
           <div className="topbar-left">
@@ -414,6 +527,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="topbar-right">
+            <button onClick={toggleTheme} className="btn-refresh" style={{ padding: '8px', borderRadius: '50%' }} title="Toggle Theme">
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
             <div className="live-badge">
               <span style={{ width: 6, height: 6, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
               Live
@@ -425,11 +541,51 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <AnimatePresence mode="wait">
         {/* ═════════════════════════════════
             DASHBOARD PAGE
         ═════════════════════════════════ */}
         {activePage === 'dashboard' && (
-          <div className="page-body">
+          <motion.div 
+            key="dashboard"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="page-body"
+          >
+            {/* Manual Trigger Actions */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <button
+                onClick={handleTriggerNews}
+                disabled={triggeringNews}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '10px 18px',
+                  fontWeight: 600, fontSize: 13.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  boxShadow: '0 4px 12px rgba(16,185,129,0.25)', transition: 'all 0.2s',
+                  opacity: triggeringNews ? 0.7 : 1
+                }}
+              >
+                {triggeringNews ? <RefreshCw size={15} className="animate-spin" /> : <Radio size={15} />}
+                Force Run News
+              </button>
+              <button
+                onClick={handleTriggerReels}
+                disabled={triggeringReels}
+                style={{
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                  color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '10px 18px',
+                  fontWeight: 600, fontSize: 13.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  boxShadow: '0 4px 12px rgba(139,92,246,0.25)', transition: 'all 0.2s',
+                  opacity: triggeringReels ? 0.7 : 1
+                }}
+              >
+                {triggeringReels ? <RefreshCw size={15} className="animate-spin" /> : <Activity size={15} />}
+                Force Run Reels
+              </button>
+            </div>
+
             {/* Stats */}
             <div className="stats-grid">
               {statsLoading ? (
@@ -497,6 +653,27 @@ export default function DashboardPage() {
               )}
             </div>
 
+            {/* Advanced Analytics */}
+            <div className="table-card" style={{ marginBottom: 24, padding: 20 }}>
+              <div className="table-card-title" style={{ marginBottom: 16 }}>Last 7 Days Performance</div>
+              <div style={{ width: '100%', height: 250 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart data={last7Days} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-main)" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
+                    <RechartsTooltip
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-main)', borderRadius: 8, fontSize: 12, color: 'var(--text-main)' }}
+                      cursor={{ fill: 'var(--bg-hover)' }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Posted" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} barSize={32} />
+                    <Bar dataKey="Failed" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={32} />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
             {/* Post History Table */}
             <div className="table-card">
               <div className="table-card-header" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: 12 }}>
@@ -505,28 +682,55 @@ export default function DashboardPage() {
                   <div className="table-card-meta">{filteredPosts.length} matches of {posts.length} records</div>
                 </div>
                 
-                {/* Dynamic Filters */}
-                <div style={{
-                  display: 'flex', gap: 4, background: '#f1f3f7', padding: 4, borderRadius: 10,
-                  marginLeft: isMobile ? 0 : 'auto', alignSelf: 'center', flexWrap: 'wrap'
-                }}>
-                  {(['ALL', 'POSTED', 'PENDING', 'FAILED'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => handleFilterChange(f)}
+                <div style={{ display: 'flex', gap: 12, marginLeft: isMobile ? 0 : 'auto', alignSelf: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Search Bar */}
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input 
+                      type="text" 
+                      placeholder="Search title..." 
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                       style={{
-                        padding: '6px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600,
-                        border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                        background: statusFilter === f ? '#fff' : 'transparent',
-                        color: statusFilter === f
-                          ? (f === 'POSTED' ? '#16a34a' : f === 'FAILED' ? '#ef4444' : f === 'PENDING' ? '#d97706' : '#1a1d2e')
-                          : '#6b7280',
-                        boxShadow: statusFilter === f ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                        padding: '6px 10px 6px 30px', borderRadius: 8, border: '1px solid var(--border-main)',
+                        background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13, outline: 'none',
+                        width: isMobile ? '100%' : '180px'
                       }}
-                    >
-                      {f}
-                    </button>
-                  ))}
+                    />
+                  </div>
+
+                  {/* Sort Toggle */}
+                  <button
+                    onClick={() => setSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                    className="btn-refresh"
+                    style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <ArrowUpDown size={14} />
+                    {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                  </button>
+
+                  {/* Status Filters */}
+                  <div style={{
+                    display: 'flex', gap: 4, background: 'var(--bg-main)', padding: 4, borderRadius: 10,
+                  }}>
+                    {(['ALL', 'POSTED', 'PENDING', 'FAILED'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => handleFilterChange(f)}
+                        style={{
+                          padding: '6px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600,
+                          border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                          background: statusFilter === f ? 'var(--bg-card)' : 'transparent',
+                          color: statusFilter === f
+                            ? (f === 'POSTED' ? '#16a34a' : f === 'FAILED' ? '#ef4444' : f === 'PENDING' ? '#d97706' : 'var(--text-main)')
+                            : 'var(--text-muted)',
+                          boxShadow: statusFilter === f ? '0 1px 3px var(--glass-shadow)' : 'none'
+                        }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -563,7 +767,7 @@ export default function DashboardPage() {
                         const cfg = statusConfig[post.status] ?? statusConfig.PENDING
                         const cleanTitle = stripHtml(post.title)
                         return (
-                          <tr key={post.id}>
+                          <tr key={post.id} onClick={() => setSelectedPost(post)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9fafb'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                             <td>
                               <div className="post-title-cell" title={cleanTitle}>{cleanTitle}</div>
                             </td>
@@ -574,18 +778,18 @@ export default function DashboardPage() {
                               </span>
                             </td>
                             <td className="col-fbid">
-                              <span style={{ fontSize: 11.5, color: '#b0b5c9' }}>
+                              <span style={{ fontSize: 11.5, color: 'var(--text-muted-light)' }}>
                                 {post.fbPostId ?? '—'}
                               </span>
                             </td>
-                            <td className="col-time" style={{ color: '#8a8fa8', fontSize: 12, whiteSpace: 'nowrap' }}>
+                            <td className="col-time" style={{ color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                               {formatDate(post.postedAt ?? post.createdAt)}
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               <button
                                 id={`delete-${post.id}`}
                                 className="btn-delete"
-                                onClick={() => setDeleteConfirmId(post.id)}
+                                onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(post.id); }}
                                 title="Delete post"
                               >
                                 <Trash2 size={12} />
@@ -603,11 +807,11 @@ export default function DashboardPage() {
               {/* Pagination UI */}
               {!postsLoading && filteredPosts.length > 0 && (
                 <div style={{
-                  padding: '12px 20px', borderTop: '1px solid #f0f2f5',
+                  padding: '12px 20px', borderTop: '1px solid var(--border-light)',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: '#fafbfc'
+                  background: 'var(--bg-main)'
                 }}>
-                  <div style={{ fontSize: 12.5, color: '#8a8fa8' }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                     Showing {(currentPage - 1) * POSTS_PER_PAGE + 1} to {Math.min(currentPage * POSTS_PER_PAGE, filteredPosts.length)} of {filteredPosts.length}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -631,27 +835,108 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
+
+            {/* Live Terminal Logs */}
+            <div className="table-card" style={{ marginTop: 24, background: '#0d1117', border: '1px solid #30363d', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', background: '#161b22', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Activity size={14} color="#3fb950" />
+                <span style={{ color: '#c9d1d9', fontSize: 12.5, fontWeight: 600, fontFamily: 'monospace' }}>bot-process-terminal</span>
+                <div style={{ flex: 1 }} />
+                
+                {/* Log Controls */}
+                <div style={{ display: 'flex', gap: 8, marginRight: 16 }}>
+                  {(['ALL', 'ERROR', 'SUCCESS'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setLogFilter(f)}
+                      style={{
+                        padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                        border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                        background: logFilter === f ? '#30363d' : 'transparent',
+                        color: logFilter === f ? '#e6edf3' : '#8b949e',
+                      }}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setAutoScrollLogs(v => !v)}
+                    style={{
+                      padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                      border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                      background: autoScrollLogs ? 'rgba(63, 185, 80, 0.2)' : 'transparent',
+                      color: autoScrollLogs ? '#3fb950' : '#8b949e',
+                    }}
+                    title="Toggle Auto-Scroll"
+                  >
+                    {autoScrollLogs ? <Play size={12} /> : <Pause size={12} />}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#27c93f' }} />
+                </div>
+              </div>
+              <div style={{
+                height: 250, overflowY: 'auto', padding: 16, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                fontSize: 12, color: '#e6edf3', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 4
+              }}
+              ref={(el) => { if (el && autoScrollLogs) el.scrollTop = el.scrollHeight; }}>
+                {liveLogs.length === 0 ? (
+                  <div style={{ color: '#8b949e', fontStyle: 'italic' }}>Waiting for logs...</div>
+                ) : (
+                  liveLogs
+                    .filter(log => {
+                      if (logFilter === 'ALL') return true;
+                      const isErr = log.includes('❌') || log.includes('Error');
+                      const isSuccess = log.includes('✅') || log.includes('started');
+                      if (logFilter === 'ERROR') return isErr;
+                      if (logFilter === 'SUCCESS') return isSuccess;
+                      return true;
+                    })
+                    .map((log, i) => {
+                      const isErr = log.includes('❌') || log.includes('Error')
+                      const isWarn = log.includes('⚠️')
+                      const isSuccess = log.includes('✅') || log.includes('started')
+                      return (
+                        <div key={i} style={{ color: isErr ? '#ff7b72' : isWarn ? '#d2a8ff' : isSuccess ? '#3fb950' : '#e6edf3' }}>
+                          {log}
+                        </div>
+                      )
+                    })
+                )}
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {/* ═════════════════════════════════
             RSS FEEDS PAGE
         ═════════════════════════════════ */}
         {activePage === 'feeds' && (
-          <div className="page-body">
+          <motion.div 
+            key="feeds"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="page-body"
+          >
             <div className="table-card" style={{ marginBottom: 20 }}>
               <div className="table-card-header">
                 <div>
                   <div className="table-card-title">Active RSS Sources</div>
                   <div className="table-card-meta">{RSS_FEEDS.length} feeds configured</div>
                 </div>
-                <Rss size={15} color="#8a8fa8" />
+                <Rss size={15} color="var(--text-muted)" />
               </div>
               <div style={{ padding: '8px 0' }}>
                 {RSS_FEEDS.map((feed, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 14,
-                    padding: '14px 20px', borderBottom: i < RSS_FEEDS.length - 1 ? '1px solid #f0f2f5' : 'none',
+                    padding: '14px 20px', borderBottom: i < RSS_FEEDS.length - 1 ? '1px solid var(--border-light)' : 'none',
                   }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 9,
@@ -661,8 +946,8 @@ export default function DashboardPage() {
                       <Rss size={16} color="#C8102E" />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13.5, color: '#0f1117' }}>{feed.name}</div>
-                      <div style={{ fontSize: 11.5, color: '#b0b5c9', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text-strong)' }}>{feed.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted-light)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {feed.url}
                       </div>
                     </div>
@@ -672,9 +957,9 @@ export default function DashboardPage() {
                         Active
                       </span>
                       <a href={feed.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', color: '#8a8fa8', transition: 'color 0.15s' }}
+                        style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', transition: 'color 0.15s' }}
                         onMouseOver={e => (e.currentTarget.style.color = '#C8102E')}
-                        onMouseOut={e => (e.currentTarget.style.color = '#8a8fa8')}
+                        onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                       >
                         <ExternalLink size={14} />
                       </a>
@@ -699,7 +984,7 @@ export default function DashboardPage() {
                   activeSchedules.map((s, i, arr) => (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '13px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f0f2f5' : 'none',
+                      padding: '13px 20px', borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none',
                     }}>
                       <div style={{
                         width: 52, textAlign: 'center', fontWeight: 700,
@@ -712,7 +997,7 @@ export default function DashboardPage() {
                           {s.label}
                           {s.isReel && <span style={{ fontSize: 10, padding: '2px 6px', background: '#ede9fe', color: '#7c3aed', borderRadius: 4, fontWeight: 600 }}>REEL</span>}
                         </div>
-                        <div style={{ fontSize: 11.5, color: '#b0b5c9', fontFamily: 'monospace' }}>{s.cron}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-muted-light)', fontFamily: 'monospace' }}>{s.cron}</div>
                       </div>
                       <span className="badge-status badge-posted">
                         <span style={{ width: 5, height: 5, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
@@ -723,14 +1008,21 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ═════════════════════════════════
             ANALYTICS PAGE
         ═════════════════════════════════ */}
         {activePage === 'analytics' && (
-          <div className="page-body">
+          <motion.div 
+            key="analytics"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="page-body"
+          >
             <div className="stats-grid" style={{ marginBottom: 20 }}>
               <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
                 <div className="stat-card-icon green" style={{ background: 'rgba(16, 185, 129, 0.08)' }}><CheckCircle size={18} /></div>
@@ -819,12 +1111,12 @@ export default function DashboardPage() {
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8a8fa8' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: '#8a8fa8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
                         <RechartsTooltip
                           contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 30px rgba(0,0,0,0.08)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}
                           itemStyle={{ fontSize: 12, fontWeight: 600 }}
-                          labelStyle={{ fontSize: 11, color: '#8a8fa8', marginBottom: 4 }}
+                          labelStyle={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}
                         />
                         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} iconType="circle" iconSize={8} />
                         <Bar dataKey="POSTED" name="Posted" stackId="a" fill="url(#colorPosted)" radius={[0, 0, 0, 0]} />
@@ -853,7 +1145,7 @@ export default function DashboardPage() {
                 ].map((row, i) => {
                   const pct = stats?.total ? Math.round((row.value / stats.total) * 100) : 0
                   return (
-                    <div key={i} style={{ padding: '16px 20px', borderBottom: i < 2 ? '1px solid #f0f2f5' : 'none' }}>
+                    <div key={i} style={{ padding: '16px 20px', borderBottom: i < 2 ? '1px solid var(--border-light)' : 'none' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontWeight: 600, fontSize: 13.5 }}>{row.label}</span>
                         <span style={{ fontWeight: 700, fontSize: 13.5, color: row.color }}>{row.value} ({pct}%)</span>
@@ -870,14 +1162,21 @@ export default function DashboardPage() {
                 })}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ═════════════════════════════════
             SETTINGS PAGE
         ═════════════════════════════════ */}
         {activePage === 'settings' && (
-          <div className="page-body">
+          <motion.div 
+            key="settings"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="page-body"
+          >
             <div className="table-card" style={{ marginBottom: 20 }}>
               <div className="table-card-header">
                 <div className="table-card-title">Configuration</div>
@@ -891,17 +1190,17 @@ export default function DashboardPage() {
               ].map((item, i, arr) => (
                 <div key={item.key} style={{
                   display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '14px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f0f2f5' : 'none',
+                  padding: '14px 20px', borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none',
                 }}>
                   <div style={{
-                    width: 36, height: 36, borderRadius: 9, background: '#f8f9fb',
+                    width: 36, height: 36, borderRadius: 9, background: 'var(--bg-hover)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
-                    <Settings size={15} color="#8a8fa8" />
+                    <Settings size={15} color="var(--text-muted)" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.label}</div>
-                    <div style={{ fontSize: 11.5, color: '#b0b5c9', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted-light)', fontFamily: 'monospace' }}>
                       {item.secret ? '●●●●●●●●●●●●' : item.key}
                     </div>
                   </div>
@@ -913,15 +1212,84 @@ export default function DashboardPage() {
               ))}
             </div>
 
+            {/* RSS Feeds Settings Card */}
+            <div className="table-card" style={{ padding: 24, marginBottom: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Rss size={18} color="#f59e0b" />
+                แหล่งที่มาของข่าว (RSS Sources)
+              </h3>
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>ตั้งค่า RSS Feed สำหรับให้บอทดึงข่าวอัตโนมัติ</p>
+
+              {/* Add new feed row */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                <input
+                  type="text"
+                  placeholder="ชื่อแหล่งข่าว (เช่น BBC Sport)"
+                  value={newFeedName}
+                  onChange={(e) => setNewFeedName(e.target.value)}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-main)',
+                    outline: 'none', background: 'var(--bg-hover)', fontSize: 14, flex: '1 1 200px'
+                  }}
+                />
+                <input
+                  type="url"
+                  placeholder="RSS URL (เช่น https://.../rss.xml)"
+                  value={newFeedUrl}
+                  onChange={(e) => setNewFeedUrl(e.target.value)}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-main)',
+                    outline: 'none', background: 'var(--bg-hover)', fontSize: 14, flex: '2 1 300px'
+                  }}
+                />
+                <button
+                  onClick={addFeed}
+                  className="btn-refresh"
+                  style={{ background: '#f59e0b', color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  เพิ่มแหล่งข่าว
+                </button>
+              </div>
+
+              {/* Feeds list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {editedFeeds.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีแหล่งข่าวในระบบ</div>
+                ) : (
+                  editedFeeds.map((feed, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                      background: 'var(--bg-card)', border: '1px solid var(--border-main)',
+                      borderRadius: 8, padding: '12px 16px'
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-strong)' }}>{feed.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{feed.url}</div>
+                      </div>
+                      <button
+                        onClick={() => removeFeed(idx)}
+                        style={{
+                          background: '#fef2f2', color: '#C8102E', border: 'none', borderRadius: 6,
+                          padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0
+                        }}
+                      >
+                        ลบ
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             {/* Scheduler settings card */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 20 }}>
               {/* News Schedule Card */}
               <div className="table-card" style={{ padding: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f1117', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Radio size={18} color="#C8102E" />
                   ตารางเวลาโพสต์ข่าว (News Schedule)
                 </h3>
-                <p style={{ fontSize: 12.5, color: '#8a8fa8', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์คอนเทนต์ข่าวลิเวอร์พูลปกติ</p>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์คอนเทนต์ข่าวลิเวอร์พูลปกติ</p>
 
                 {/* Add new time row */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -930,14 +1298,14 @@ export default function DashboardPage() {
                     value={newNewsTime}
                     onChange={(e) => setNewNewsTime(e.target.value)}
                     style={{
-                      padding: '8px 12px', borderRadius: 8, border: '1px solid #e8eaed',
-                      outline: 'none', background: '#f8f9fb', fontSize: 14, flex: 1
+                      padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-main)',
+                      outline: 'none', background: 'var(--bg-hover)', fontSize: 14, flex: 1
                     }}
                   />
                   <button
                     onClick={addNewsTime}
                     className="btn-refresh"
-                    style={{ background: '#C8102E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
+                    style={{ background: '#C8102E', color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
                   >
                     เพิ่มเวลา
                   </button>
@@ -946,7 +1314,7 @@ export default function DashboardPage() {
                 {/* Times list */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {editedNews.length === 0 ? (
-                    <div style={{ fontSize: 13, color: '#8a8fa8', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ข่าว</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ข่าว</div>
                   ) : (
                     editedNews.map(time => (
                       <span key={time} style={{
@@ -970,11 +1338,11 @@ export default function DashboardPage() {
 
               {/* Reels Schedule Card */}
               <div className="table-card" style={{ padding: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f1117', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Radio size={18} color="#7c3aed" />
                   ตารางเวลาโพสต์ Reels (Reels Schedule)
                 </h3>
-                <p style={{ fontSize: 12.5, color: '#8a8fa8', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์วิดีโอสั้น / Reels</p>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์วิดีโอสั้น / Reels</p>
 
                 {/* Add new time row */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -983,14 +1351,14 @@ export default function DashboardPage() {
                     value={newReelTime}
                     onChange={(e) => setNewReelTime(e.target.value)}
                     style={{
-                      padding: '8px 12px', borderRadius: 8, border: '1px solid #e8eaed',
-                      outline: 'none', background: '#f8f9fb', fontSize: 14, flex: 1
+                      padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-main)',
+                      outline: 'none', background: 'var(--bg-hover)', fontSize: 14, flex: 1
                     }}
                   />
                   <button
                     onClick={addReelTime}
                     className="btn-refresh"
-                    style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
+                    style={{ background: '#7c3aed', color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
                   >
                     เพิ่มเวลา
                   </button>
@@ -999,7 +1367,7 @@ export default function DashboardPage() {
                 {/* Times list */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {editedReels.length === 0 ? (
-                    <div style={{ fontSize: 13, color: '#8a8fa8', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ Reels</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ Reels</div>
                   ) : (
                     editedReels.map(time => (
                       <span key={time} style={{
@@ -1029,7 +1397,7 @@ export default function DashboardPage() {
                 onClick={handleSaveSettings}
                 className="btn-refresh"
                 style={{
-                  background: '#C8102E', color: '#fff', border: 'none',
+                  background: '#C8102E', color: 'var(--bg-card)', border: 'none',
                   borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 14,
                   cursor: 'pointer', opacity: savingSettings ? 0.7 : 1,
                   display: 'flex', alignItems: 'center', gap: 8
@@ -1039,9 +1407,132 @@ export default function DashboardPage() {
                 บันทึกกำหนดเวลาทั้งหมด
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
+        </AnimatePresence>
+      </main>
+
+      {/* Post Details Slide-Over Drawer */}
+      {selectedPost && (
+        <div style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0, left: 0,
+          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          zIndex: 100, display: 'flex', justifyContent: 'flex-end',
+          animation: 'fadeIn 0.2s ease-out'
+        }} onClick={() => setSelectedPost(null)}>
+          <div style={{
+            width: '100%', maxWidth: 450, background: 'var(--bg-card)',
+            boxShadow: '-4px 0 24px rgba(0,0,0,0.1)',
+            height: '100%', overflowY: 'auto',
+            animation: 'slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'flex', flexDirection: 'column'
+          }} onClick={e => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid var(--border-light)',
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+              position: 'sticky', top: 0, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', zIndex: 10
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>POST DETAILS</div>
+                  <span className={`badge-status ${statusConfig[selectedPost.status]?.cls ?? 'badge-pending'}`}>
+                    <span style={{ width: 5, height: 5, background: statusConfig[selectedPost.status]?.dot ?? '#d97706', borderRadius: '50%', display: 'inline-block' }} />
+                    {statusConfig[selectedPost.status]?.label ?? 'Pending'}
+                  </span>
+                </div>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-strong)', lineHeight: 1.4 }}>
+                  {stripHtml(selectedPost.title)}
+                </h2>
+              </div>
+              <button onClick={() => setSelectedPost(null)} style={{ background: 'var(--border-light)', border: 'none', borderRadius: '50%', padding: 8, cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: 24, flex: 1 }}>
+              {/* Timeline / Meta info */}
+              <div style={{ background: 'var(--bg-hover)', borderRadius: 12, padding: 16, marginBottom: 24, border: '1px solid var(--border-main)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>CREATED AT</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 500 }}>{formatDate(selectedPost.createdAt)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>POSTED AT</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 500 }}>{selectedPost.postedAt ? formatDate(selectedPost.postedAt) : '—'}</div>
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>FACEBOOK POST ID</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 500, fontFamily: 'monospace' }}>{selectedPost.fbPostId || 'Not posted yet'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+                {selectedPost.fbPostId && (
+                  <a href={`https://facebook.com/${selectedPost.fbPostId}`} target="_blank" rel="noreferrer" style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: '#1877F2', color: 'var(--bg-card)', textDecoration: 'none', padding: '10px 0',
+                    borderRadius: 8, fontWeight: 600, fontSize: 13.5, transition: 'opacity 0.2s'
+                  }} onMouseOver={e => e.currentTarget.style.opacity = '0.9'} onMouseOut={e => e.currentTarget.style.opacity = '1'}>
+                    <ExternalLink size={15} /> View on FB
+                  </a>
+                )}
+                {selectedPost.link && (
+                  <a href={selectedPost.link} target="_blank" rel="noreferrer" style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: 'var(--bg-card)', color: 'var(--text-main)', textDecoration: 'none', padding: '10px 0',
+                    borderRadius: 8, fontWeight: 600, fontSize: 13.5, border: '1px solid var(--border-main)', transition: 'background 0.2s'
+                  }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseOut={e => e.currentTarget.style.background = 'var(--bg-card)'}>
+                    <ExternalLink size={15} /> Source
+                  </a>
+                )}
+              </div>
+
+              {/* Thai Summary Content */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={16} color="#C8102E" />
+                  Thai Summary
+                </div>
+                {selectedPost.content ? (
+                  <div style={{
+                    fontSize: 14.5, color: '#374151', lineHeight: 1.7, background: 'var(--bg-card)',
+                    padding: 16, borderRadius: 12, border: '1px solid var(--border-main)', whiteSpace: 'pre-wrap'
+                  }}>
+                    {selectedPost.content}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '12px 0' }}>
+                    No content available for this post.
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-main)' }}>
+              <button
+                onClick={() => setSelectedPost(null)}
+                style={{
+                  width: '100%', padding: '12px 0', background: 'var(--bg-card)', border: '1px solid var(--border-main)',
+                  borderRadius: 8, fontWeight: 600, fontSize: 14, color: 'var(--text-main)', cursor: 'pointer'
+                }}
+              >
+                Close Drawer
+              </button>
+            </div>
+          </div>
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          `}} />
+        </div>
+      )}
     </div>
   )
 }

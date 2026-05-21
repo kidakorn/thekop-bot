@@ -14,6 +14,24 @@ import * as cheerio from 'cheerio'
 import textToSpeech from '@google-cloud/text-to-speech'
 import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
+import http from 'http'
+
+// --- Live Logger Interceptor ---
+const memoryLogs = []
+const origLog = console.log
+const origWarn = console.warn
+const origErr = console.error
+
+function addLog(msg) {
+	const time = new Date().toLocaleTimeString('en-US', { hour12: false })
+	memoryLogs.push(`[${time}] ${msg}`)
+	if (memoryLogs.length > 200) memoryLogs.shift()
+}
+
+console.log = (...args) => { const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '); addLog(msg); origLog(...args) }
+console.warn = (...args) => { const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '); addLog(`⚠️ ${msg}`); origWarn(...args) }
+console.error = (...args) => { const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '); addLog(`❌ ${msg}`); origErr(...args) }
+// --------------------------------
 
 const { Pool } = pg
 
@@ -64,6 +82,7 @@ const assetKeywords = [
 
 function getMatchedAsset(title, thaiSummary) {
 	const text = `${title} ${thaiSummary || ''}`.toLowerCase()
+
 	for (const item of assetKeywords) {
 		if (item.keywords.some(kw => text.includes(kw))) {
 			const filePath = path.join(process.cwd(), 'assets', item.type, item.file)
@@ -83,6 +102,20 @@ function getMatchedAsset(title, thaiSummary) {
 			}
 		}
 	}
+
+	// Fallback for transfer/general news (use Anfield)
+	const transferKeywords = ['transfer', 'signing', 'bid', 'target', 'loan', 'xabi', 'carragher', 'gerrard', 'rooney', 'bowen', 'isak']
+	if (transferKeywords.some(kw => text.includes(kw))) {
+		console.log('⚽ Transfer/General news — using Anfield fallback reference')
+		const stadiumPath = path.resolve(process.cwd(), 'assets/stadium/Anfield.webp')
+		if (existsSync(stadiumPath)) {
+			try {
+				const base64 = readFileSync(stadiumPath).toString('base64')
+				return { name: 'Anfield', type: 'stadium', file: 'Anfield.webp', filePath: stadiumPath, base64 }
+			} catch (err) { }
+		}
+	}
+
 	return null
 }
 
@@ -244,85 +277,7 @@ function extractScore(title) {
 	return null
 }
 
-// Find reference image from assets folder based on news title
-function findReferenceImage(title) {
-	const titleLower = title.toLowerCase()
-
-	// Map names to filenames
-	const playerMap = {
-		'salah': 'Mohamed_Salah',
-		'van dijk': 'Virgil_van_Dijk',
-		'robertson': 'Andy_Robertson',
-		'trent': 'Trent_Alexander-Arnold',
-		'mac allister': 'Alexis_Mac_Allister',
-		'szoboszlai': 'Dominik_Szoboszlai',
-		'wirtz': 'Florian_Wirtz',
-		'gravenberch': 'Ryan_Gravenberch',
-		'gakpo': 'Cody_Gakpo',
-		'chiesa': 'Federico_Chiesa',
-		'elliott': 'Harvey_Elliott',
-		'bradley': 'Conor_Bradley',
-		'frimpong': 'Jeremie_Frimpong',
-		'kerkez': 'Milos_Kerkez',
-		'gomez': 'Joe_Gomez',
-		'konate': 'Ibrahima_Konate',
-		'endo': 'Wataru_Endo',
-		'jones': 'Curtis_Jones',
-		'ekitike': 'Hugo_Ekitike',
-		'jota': 'Diogo_Jota',
-		'leoni': 'Giovanni_Leoni',
-		'mamardashvili': 'Giorgi_Mamardashvili',
-		'woodman': 'Freddie_Woodman',
-		'tsimikas': 'Kostas_Tsimikas',
-		'ngumoha': 'Rio_Ngumoha',
-		'slot': 'Arne_Slot',
-		'van bronckhorst': 'Giovanni_van_Bronckhorst',
-		'hulshoff': 'Sioke_Hulshoff',
-	}
-
-	// If transfer news about non-Liverpool player — use Anfield
-	const transferKeywords = ['bowen', 'isak', 'xabi', 'rooney', 'carragher', 'gerrard', 'transfer', 'signing', 'bid', 'target', 'loan']
-	for (const keyword of transferKeywords) {
-		if (titleLower.includes(keyword)) {
-			// Check if it's NOT a current Liverpool player
-			const isLiverpoolPlayer = Object.keys(playerMap).some(k => titleLower.includes(k))
-			if (!isLiverpoolPlayer) {
-				console.log('⚽ Transfer news — using Anfield reference')
-				const stadiumPath = path.resolve(process.cwd(), 'assets/stadium/Anfield.webp')
-				if (existsSync(stadiumPath)) return stadiumPath
-			}
-		}
-	}
-
-	// Find matching player
-	for (const [keyword, filename] of Object.entries(playerMap)) {
-		if (titleLower.includes(keyword)) {
-			const extensions = ['.webp', '.jpg', '.jpeg', '.png']
-			for (const ext of extensions) {
-				const filePath = path.resolve(process.cwd(), `assets/players/${filename}${ext}`)
-				if (existsSync(filePath)) {
-					console.log(`🖼️ Found reference: ${filename}`)
-					return filePath
-				}
-				// Check staff folder
-				const staffPath = path.resolve(process.cwd(), `assets/staff/${filename}${ext}`)
-				if (existsSync(staffPath)) {
-					console.log(`🖼️ Found staff reference: ${filename}`)
-					return staffPath
-				}
-			}
-		}
-	}
-
-	// Fallback to Anfield stadium
-	const stadiumPath = path.resolve(process.cwd(), 'assets/stadium/Anfield.webp')
-	if (existsSync(stadiumPath)) {
-		console.log('🏟️ Using Anfield as reference')
-		return stadiumPath
-	}
-
-	return null
-}
+// findReferenceImage logic has been refactored into getMatchedAsset
 
 // Generate image using Imagen via Vertex AI
 async function generateImage(title, thaiSummary) {
@@ -330,16 +285,6 @@ async function generateImage(title, thaiSummary) {
 		const client = await auth.getClient()
 		const projectId = await auth.getProjectId()
 		const location = 'us-central1'
-		const refImagePath = findReferenceImage(title)
-
-		let refBase64 = ''
-		let mimeType = ''
-		if (refImagePath) {
-			const refBuffer = readFileSync(refImagePath)
-			refBase64 = refBuffer.toString('base64')
-			const ext = path.extname(refImagePath).toLowerCase()
-			mimeType = ext === '.webp' ? 'image/webp' : ext === '.png' ? 'image/png' : 'image/jpeg'
-		}
 
 		// Check for matched asset reference
 		const matchedAsset = getMatchedAsset(title, thaiSummary)
@@ -446,29 +391,12 @@ Output ONLY the final prompt, no explanation.`}]
 			imagePrompt = translateRes.data.candidates[0].content.parts[0].text.trim()
 			console.log(`🎨 Standard Image prompt: ${imagePrompt}`)
 
-			if (refBase64) {
-				requestData = {
-					instances: [{
-						prompt: imagePrompt,
-						image: {
-							bytesBase64Encoded: refBase64,
-							mimeType: mimeType
-						}
-					}],
-					parameters: {
-						sampleCount: 1,
-						aspectRatio: '1:1',
-						safetySetting: 'block_most',
-					}
-				}
-			} else {
-				requestData = {
-					instances: [{ prompt: imagePrompt }],
-					parameters: {
-						sampleCount: 1,
-						aspectRatio: '1:1',
-						safetySetting: 'block_most',
-					}
+			requestData = {
+				instances: [{ prompt: imagePrompt }],
+				parameters: {
+					sampleCount: 1,
+					aspectRatio: '1:1',
+					safetySetting: 'block_most',
 				}
 			}
 		}
@@ -1049,7 +977,7 @@ async function checkAndRunSchedules() {
 			if (lastNewsRunTime !== runKey) {
 				lastNewsRunTime = runKey
 				console.log(`⏰ [Scheduler] Matching News schedule at ${timeStr}. Running runBot...`)
-				runBot()
+				runBot().catch(e => console.error('❌ Unhandled error in runBot:', e))
 			}
 		}
 
@@ -1058,7 +986,7 @@ async function checkAndRunSchedules() {
 			if (lastReelsRunTime !== runKey) {
 				lastReelsRunTime = runKey
 				console.log(`⏰ [Scheduler] Matching Reels schedule at ${timeStr}. Running runReelBot...`)
-				runReelBot()
+				runReelBot().catch(e => console.error('❌ Unhandled error in runReelBot:', e))
 			}
 		}
 	} catch (err) {
@@ -1071,5 +999,32 @@ cron.schedule('* * * * *', checkAndRunSchedules, { timezone: "Asia/Bangkok" })
 
 // Auto-refresh token every 50 days
 cron.schedule('0 0 */50 * *', refreshFacebookToken, { timezone: "Asia/Bangkok" })
+// --- Internal API Server for Frontend ---
+const server = http.createServer((req, res) => {
+	res.setHeader('Access-Control-Allow-Origin', '*')
+	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
 
-console.log('🔴 The Kop Bot started...')
+	if (req.method === 'OPTIONS') {
+		res.writeHead(204); res.end(); return
+	}
+
+	if (req.method === 'GET' && req.url === '/api/logs') {
+		res.writeHead(200, { 'Content-Type': 'application/json' })
+		res.end(JSON.stringify(memoryLogs))
+	} else if (req.method === 'POST' && req.url === '/api/run-news') {
+		console.log('⚡ Manual trigger: News Bot via Dashboard')
+		runBot().catch(e => console.error('❌ Unhandled error in manual runBot:', e))
+		res.writeHead(200); res.end(JSON.stringify({ status: 'ok' }))
+	} else if (req.method === 'POST' && req.url === '/api/run-reels') {
+		console.log('⚡ Manual trigger: Reels Bot via Dashboard')
+		runReelBot().catch(e => console.error('❌ Unhandled error in manual runReelBot:', e))
+		res.writeHead(200); res.end(JSON.stringify({ status: 'ok' }))
+	} else {
+		res.writeHead(404); res.end()
+	}
+})
+
+server.listen(4000, () => {
+	console.log('🔌 Internal API running on port 4000')
+	console.log('🔴 The Kop Bot started...')
+})

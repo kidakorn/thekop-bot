@@ -1,10 +1,6 @@
 import axios from 'axios'
 import { NewsItem } from '../../types'
-
-const RSS_FEEDS = [
-	'https://www.liverpoolfc.com/news/rss.xml',
-	'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
-]
+import prisma from '../../lib/db'
 
 /**
  * Parse RSS XML into array of news items
@@ -45,7 +41,27 @@ function parseRSS(xmlText: string): NewsItem[] {
  * Returns empty array if all feeds fail
  */
 export async function fetchLiverpoolNews(): Promise<NewsItem[]> {
-	for (const feedUrl of RSS_FEEDS) {
+	// Fetch dynamic RSS feeds from database
+	let rssFeeds = [
+		'https://www.liverpoolfc.com/news/rss.xml',
+		'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
+	]
+
+	try {
+		const setting = await prisma.setting.findUnique({
+			where: { key: 'rss_feeds' }
+		})
+		if (setting && setting.value) {
+			const parsed = JSON.parse(setting.value)
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				rssFeeds = parsed.map((feed: any) => feed.url).filter(Boolean)
+			}
+		}
+	} catch (err) {
+		console.warn('⚠️ Failed to load RSS feeds from database, using defaults.', err)
+	}
+
+	for (const feedUrl of rssFeeds) {
 		try {
 			const response = await axios.get<string>(feedUrl, {
 				timeout: 10000,

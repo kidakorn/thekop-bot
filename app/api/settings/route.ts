@@ -17,9 +17,18 @@ export async function GET() {
 			? JSON.parse(config.reels_schedule)
 			: ['09:30', '13:30', '17:30', '19:30', '21:30', '23:30']
 
+		const rssFeeds = config.rss_feeds
+			? JSON.parse(config.rss_feeds)
+			: [
+				{ name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml' },
+				{ name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss' },
+				{ name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news/rss.xml' },
+			]
+
 		return NextResponse.json({
 			news_schedule: newsSchedule,
 			reels_schedule: reelsSchedule,
+			rss_feeds: rssFeeds,
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings GET error:', error)
@@ -30,10 +39,14 @@ export async function GET() {
 export async function POST(request: Request) {
 	try {
 		const body = await request.json()
-		const { news_schedule, reels_schedule } = body
+		const { news_schedule, reels_schedule, rss_feeds } = body
 
 		if (!Array.isArray(news_schedule) || !Array.isArray(reels_schedule)) {
 			return NextResponse.json({ error: 'Invalid schedules format' }, { status: 400 })
+		}
+		
+		if (rss_feeds && !Array.isArray(rss_feeds)) {
+			return NextResponse.json({ error: 'Invalid rss_feeds format' }, { status: 400 })
 		}
 
 		// Validate that each item is in HH:MM format
@@ -49,7 +62,7 @@ export async function POST(request: Request) {
 		const sortedNews = [...news_schedule].sort()
 		const sortedReels = [...reels_schedule].sort()
 
-		await prisma.$transaction([
+		const transactions = [
 			prisma.setting.upsert({
 				where: { key: 'news_schedule' },
 				update: { value: JSON.stringify(sortedNews) },
@@ -59,10 +72,27 @@ export async function POST(request: Request) {
 				where: { key: 'reels_schedule' },
 				update: { value: JSON.stringify(sortedReels) },
 				create: { key: 'reels_schedule', value: JSON.stringify(sortedReels) },
-			}),
-		])
+			})
+		]
+		
+		if (rss_feeds) {
+			transactions.push(
+				prisma.setting.upsert({
+					where: { key: 'rss_feeds' },
+					update: { value: JSON.stringify(rss_feeds) },
+					create: { key: 'rss_feeds', value: JSON.stringify(rss_feeds) },
+				})
+			)
+		}
 
-		return NextResponse.json({ success: true, news_schedule: sortedNews, reels_schedule: sortedReels }, { status: 200 })
+		await prisma.$transaction(transactions)
+
+		return NextResponse.json({ 
+			success: true, 
+			news_schedule: sortedNews, 
+			reels_schedule: sortedReels,
+			rss_feeds: rss_feeds
+		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings POST error:', error)
 		return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
