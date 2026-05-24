@@ -88,30 +88,6 @@ export default function DashboardPage() {
   
   const [triggeringNews, setTriggeringNews] = useState(false)
   const [triggeringReels, setTriggeringReels] = useState(false)
-  const [liveLogs, setLiveLogs] = useState<string[]>([])
-
-  const [liveLogsError, setLiveLogsError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (activePage !== 'dashboard') return
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/logs?t=${Date.now()}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data)) {
-            setLiveLogs(data)
-            setLiveLogsError(null)
-          }
-        } else {
-          setLiveLogsError(`API Error: ${res.status}`)
-        }
-      } catch(e) {
-        setLiveLogsError('Network connection failed')
-      }
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [activePage])
 
   async function handleTriggerNews() {
     setTriggeringNews(true)
