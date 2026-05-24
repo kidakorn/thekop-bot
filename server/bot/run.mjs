@@ -15,6 +15,7 @@ import textToSpeech from '@google-cloud/text-to-speech'
 import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
 import http from 'http'
+import { translate } from 'google-translate-api-x'
 
 // --- Live Logger Interceptor ---
 const memoryLogs = []
@@ -894,9 +895,21 @@ async function runBot() {
 
 		let thaiSummary = latest.description
 		if (disableAi) {
-			console.log('🤖 AI disabled: using raw English description')
-			// Optional: truncate description if too long
-			thaiSummary = thaiSummary.slice(0, 300) + (thaiSummary.length > 300 ? '...' : '')
+			console.log('🤖 AI disabled: using free translator (google-translate-api-x)')
+			try {
+				const titleRes = await translate(latest.title, { to: 'th' })
+				const descRes = await translate(latest.description, { to: 'th' })
+				
+				const translatedTitle = titleRes.text
+				let translatedDesc = descRes.text
+				// Truncate description if too long
+				translatedDesc = translatedDesc.slice(0, 300) + (translatedDesc.length > 300 ? '...' : '')
+				
+				thaiSummary = `${translatedTitle}\n\n${translatedDesc}`
+			} catch (err) {
+				console.warn('⚠️ Free translation failed, falling back to raw English:', err.message)
+				thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 300)}...`
+			}
 		} else {
 			// Summarize in Thai using Gemini
 			console.log('🤖 Summarizing in Thai...')
