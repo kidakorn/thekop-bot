@@ -344,10 +344,8 @@ Output ONLY the final prompt, no explanation.`}]
 							referenceId: 1,
 							referenceType: 'REFERENCE_TYPE_SUBJECT',
 							referenceImage: {
-								image: {
-									bytesBase64Encoded: matchedAsset.base64,
-									mimeType: 'image/webp'
-								}
+								bytesBase64Encoded: matchedAsset.base64,
+								mimeType: 'image/webp'
 							}
 						}
 					]
