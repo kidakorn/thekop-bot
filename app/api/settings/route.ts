@@ -25,10 +25,13 @@ export async function GET() {
 				{ name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news/rss.xml' },
 			]
 
+		const disableAi = config.disable_ai === 'true'
+
 		return NextResponse.json({
 			news_schedule: newsSchedule,
 			reels_schedule: reelsSchedule,
 			rss_feeds: rssFeeds,
+			disable_ai: disableAi,
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings GET error:', error)
@@ -39,7 +42,7 @@ export async function GET() {
 export async function POST(request: Request) {
 	try {
 		const body = await request.json()
-		const { news_schedule, reels_schedule, rss_feeds } = body
+		const { news_schedule, reels_schedule, rss_feeds, disable_ai } = body
 
 		if (!Array.isArray(news_schedule) || !Array.isArray(reels_schedule)) {
 			return NextResponse.json({ error: 'Invalid schedules format' }, { status: 400 })
@@ -84,6 +87,16 @@ export async function POST(request: Request) {
 				})
 			)
 		}
+		
+		if (typeof disable_ai === 'boolean') {
+			transactions.push(
+				prisma.setting.upsert({
+					where: { key: 'disable_ai' },
+					update: { value: disable_ai ? 'true' : 'false' },
+					create: { key: 'disable_ai', value: disable_ai ? 'true' : 'false' },
+				})
+			)
+		}
 
 		await prisma.$transaction(transactions)
 
@@ -91,7 +104,8 @@ export async function POST(request: Request) {
 			success: true, 
 			news_schedule: sortedNews, 
 			reels_schedule: sortedReels,
-			rss_feeds: rss_feeds
+			rss_feeds: rss_feeds,
+			disable_ai: disable_ai
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings POST error:', error)

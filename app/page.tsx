@@ -151,11 +151,12 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ news_schedule: string[]; reels_schedule: string[]; rss_feeds?: {name: string, url: string}[] }>('/api/settings', fetcher)
+    useSWR<{ news_schedule: string[]; reels_schedule: string[]; rss_feeds?: {name: string, url: string}[], disable_ai?: boolean }>('/api/settings', fetcher)
 
   const [editedNews, setEditedNews] = useState<string[]>([])
   const [editedReels, setEditedReels] = useState<string[]>([])
   const [editedFeeds, setEditedFeeds] = useState<{name: string, url: string}[]>([])
+  const [editedDisableAi, setEditedDisableAi] = useState<boolean>(false)
   const [newNewsTime, setNewNewsTime] = useState('12:00')
   const [newReelTime, setNewReelTime] = useState('12:00')
   const [newFeedName, setNewFeedName] = useState('')
@@ -169,6 +170,9 @@ export default function DashboardPage() {
       setEditedReels(settingsData.reels_schedule)
       if (settingsData.rss_feeds) {
         setEditedFeeds(settingsData.rss_feeds)
+      }
+      if (typeof settingsData.disable_ai === 'boolean') {
+        setEditedDisableAi(settingsData.disable_ai)
       }
     }
   }, [settingsData])
@@ -221,7 +225,8 @@ export default function DashboardPage() {
         body: JSON.stringify({
           news_schedule: editedNews,
           reels_schedule: editedReels,
-          rss_feeds: editedFeeds
+          rss_feeds: editedFeeds,
+          disable_ai: editedDisableAi
         })
       })
 
@@ -1112,6 +1117,38 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
             className="page-body"
           >
+            <div className="table-card" style={{ marginBottom: 20 }}>
+              <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div className="table-card-title">AI Generation</div>
+                  <div className="table-card-meta">Enable or disable all AI APIs (Text, Image, Video, Voice) to save quota.</div>
+                </div>
+                <button
+                  onClick={() => setEditedDisableAi(!editedDisableAi)}
+                  style={{
+                    background: editedDisableAi ? 'var(--bg-hover)' : '#16a34a',
+                    color: editedDisableAi ? 'var(--text-main)' : '#fff',
+                    border: '1px solid var(--border-light)',
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
+                  {editedDisableAi ? 'AI Disabled' : 'AI Enabled'}
+                  <div style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    background: editedDisableAi ? '#ef4444' : '#fff'
+                  }} />
+                </button>
+              </div>
+            </div>
+
             <div className="table-card" style={{ marginBottom: 20 }}>
               <div className="table-card-header">
                 <div className="table-card-title">Configuration</div>

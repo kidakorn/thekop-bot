@@ -640,6 +640,14 @@ async function runReelBot() {
 	let post = null
 	try {
 		console.log('🎬 Starting Reels bot...')
+		
+		// Fetch disable_ai setting
+		const disableAiSetting = await prisma.setting.findUnique({ where: { key: 'disable_ai' } })
+		if (disableAiSetting?.value === 'true') {
+			console.warn('⚠️ AI generation is disabled. Skipping Reels bot execution to save quota.')
+			return
+		}
+
 		const news = await fetchNews()
 
 		if (!news.length) {
@@ -880,9 +888,20 @@ async function runBot() {
 			return
 		}
 
-		// Summarize in Thai using Gemini
-		console.log('🤖 Summarizing in Thai...')
-		const thaiSummary = await summarizeThai(latest.title, latest.description)
+		// Fetch disable_ai setting
+		const disableAiSetting = await prisma.setting.findUnique({ where: { key: 'disable_ai' } })
+		const disableAi = disableAiSetting?.value === 'true'
+
+		let thaiSummary = latest.description
+		if (disableAi) {
+			console.log('🤖 AI disabled: using raw English description')
+			// Optional: truncate description if too long
+			thaiSummary = thaiSummary.slice(0, 300) + (thaiSummary.length > 300 ? '...' : '')
+		} else {
+			// Summarize in Thai using Gemini
+			console.log('🤖 Summarizing in Thai...')
+			thaiSummary = await summarizeThai(latest.title, latest.description)
+		}
 
 		// Save to DB with PENDING status
 		post = await prisma.post.create({
@@ -909,7 +928,10 @@ async function runBot() {
 		// Check if we have a specific player/asset mentioned in the news
 		const matchedAsset = getMatchedAsset(latest.title, thaiSummary)
 
-		if (matchedAsset) {
+		if (disableAi) {
+			console.log('🎨 AI disabled: skipping image generation, strictly using original article image.')
+			imageBase64 = articleBase64
+		} else if (matchedAsset) {
 			console.log(`🎨 Found reference (${matchedAsset.name}), generating AI image...`)
 			imageBase64 = await generateImage(latest.title, thaiSummary)
 			if (!imageBase64 && articleBase64) {
