@@ -1124,7 +1124,26 @@ export default function DashboardPage() {
                   <div className="table-card-meta">Enable or disable all AI APIs (Text, Image, Video, Voice) to save quota.</div>
                 </div>
                 <button
-                  onClick={() => setEditedDisableAi(!editedDisableAi)}
+                  onClick={async () => {
+                    const newVal = !editedDisableAi
+                    setEditedDisableAi(newVal)
+                    try {
+                      await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          news_schedule: editedNews,
+                          reels_schedule: editedReels,
+                          rss_feeds: editedFeeds,
+                          disable_ai: newVal
+                        })
+                      })
+                      mutateSettings()
+                      showToast(newVal ? 'AI Generation Disabled' : 'AI Generation Enabled', 'success')
+                    } catch(e) {
+                      showToast('Failed to save AI setting', 'error')
+                    }
+                  }}
                   style={{
                     background: editedDisableAi ? 'var(--bg-hover)' : '#16a34a',
                     color: editedDisableAi ? 'var(--text-main)' : '#fff',
