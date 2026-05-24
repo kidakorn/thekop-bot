@@ -154,10 +154,16 @@ function parseRSS(xmlText) {
 					// Ignore
 				}
 			}
+
+			// Decode HTML entities (like &apos;, &quot;, &#8217;) using cheerio
+			const decodedTitle = cheerio.load(title.trim()).text()
+			const cleanDescription = description.replace(/<[^>]+>/g, '').trim()
+			const decodedDescription = cheerio.load(cleanDescription).text()
+
 			items.push({
-				title: title.trim(),
+				title: decodedTitle,
 				link: link.trim(),
-				description: description.replace(/<[^>]+>/g, '').trim().slice(0, 500),
+				description: decodedDescription.slice(0, 500),
 				pubDate: pubDate.trim(),
 				pubDateMs: isNaN(pubDateMs) ? 0 : pubDateMs
 			})
