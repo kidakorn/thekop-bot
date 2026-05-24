@@ -1,1 +1,0 @@
-globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/posts/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"D:\\Coding\\DEVAKORN\\project_page\\thekop-bot\\app\\api\\posts\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};
