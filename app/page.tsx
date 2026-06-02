@@ -1057,7 +1057,6 @@ export default function DashboardPage() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           news_schedule: editedNews,
-                          reels_schedule: editedReels,
                           rss_feeds: editedFeeds,
                           disable_ai: newVal
                         })
@@ -1250,6 +1249,7 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
+            </div>
 
             {/* Save Button Card */}
             <div className="table-card" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
