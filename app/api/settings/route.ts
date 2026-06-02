@@ -5,7 +5,7 @@ export async function GET() {
 	try {
 		const settings = await prisma.setting.findMany()
 		const config: Record<string, string> = {}
-		settings.forEach(s => {
+		settings.forEach((s: { key: string, value: string }) => {
 			config[s.key] = s.value
 		})
 
