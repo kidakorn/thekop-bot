@@ -1,0 +1,44 @@
+name: The Kop Bot Runner
+
+on:
+  schedule:
+    - cron: '0,30 * * * *' # Run every 30 minutes (XX:00 and XX:30)
+  repository_dispatch:
+    types: [run-news, refresh-token]
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Determine Command
+        id: cmd
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "command=--scheduled-news" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.action }}" == "refresh-token" ]; then
+            echo "command=--refresh-token" >> $GITHUB_OUTPUT
+          else
+            echo "command=--news" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Bot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PAGE_ID: ${{ secrets.PAGE_ID }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+          PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
+        run: npm run bot -- ${{ steps.cmd.outputs.command }}
