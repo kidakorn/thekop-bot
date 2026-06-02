@@ -87,7 +87,6 @@ export default function DashboardPage() {
   }
   
   const [triggeringNews, setTriggeringNews] = useState(false)
-  const [triggeringReels, setTriggeringReels] = useState(false)
 
   async function handleTriggerNews() {
     setTriggeringNews(true)
@@ -97,16 +96,6 @@ export default function DashboardPage() {
       else showToast('Failed to start', 'error')
     } catch(e) { showToast('Server offline', 'error') }
     setTimeout(() => setTriggeringNews(false), 2000)
-  }
-
-  async function handleTriggerReels() {
-    setTriggeringReels(true)
-    try {
-      const res = await fetch('/api/run-reels', { method: 'POST' })
-      if (res.ok) showToast('🎬 Bot started (Reels)', 'success')
-      else showToast('Failed to start', 'error')
-    } catch(e) { showToast('Server offline', 'error') }
-    setTimeout(() => setTriggeringReels(false), 2000)
   }
 
   useEffect(() => {
@@ -127,14 +116,12 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ news_schedule: string[]; reels_schedule: string[]; rss_feeds?: {name: string, url: string}[], disable_ai?: boolean }>('/api/settings', fetcher)
+    useSWR<{ news_schedule: string[]; rss_feeds?: {name: string, url: string}[], disable_ai?: boolean }>('/api/settings', fetcher)
 
   const [editedNews, setEditedNews] = useState<string[]>([])
-  const [editedReels, setEditedReels] = useState<string[]>([])
   const [editedFeeds, setEditedFeeds] = useState<{name: string, url: string}[]>([])
   const [editedDisableAi, setEditedDisableAi] = useState<boolean>(false)
   const [newNewsTime, setNewNewsTime] = useState('12:00')
-  const [newReelTime, setNewReelTime] = useState('12:00')
   const [newFeedName, setNewFeedName] = useState('')
   const [newFeedUrl, setNewFeedUrl] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
@@ -143,7 +130,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (settingsData) {
       setEditedNews(settingsData.news_schedule)
-      setEditedReels(settingsData.reels_schedule)
       if (settingsData.rss_feeds) {
         setEditedFeeds(settingsData.rss_feeds)
       }
@@ -164,18 +150,6 @@ export default function DashboardPage() {
 
   function removeNewsTime(time: string) {
     setEditedNews(editedNews.filter(t => t !== time))
-  }
-
-  function addReelTime() {
-    if (!editedReels.includes(newReelTime)) {
-      setEditedReels([...editedReels, newReelTime].sort())
-    } else {
-      showToast('เวลานี้มีอยู่ในตารางอยู่แล้ว', 'error')
-    }
-  }
-
-  function removeReelTime(time: string) {
-    setEditedReels(editedReels.filter(t => t !== time))
   }
 
   function addFeed() {
@@ -200,7 +174,6 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           news_schedule: editedNews,
-          reels_schedule: editedReels,
           rss_feeds: editedFeeds,
           disable_ai: editedDisableAi
         })
@@ -224,7 +197,6 @@ export default function DashboardPage() {
 
   const activeSchedules = (() => {
     const news = settingsData?.news_schedule ?? ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
-    const reels = settingsData?.reels_schedule ?? ['09:30', '13:30', '17:30', '19:30', '21:30', '23:30']
     
     const items: { time: string; label: string; isReel: boolean; cron: string }[] = []
     
@@ -234,16 +206,6 @@ export default function DashboardPage() {
         time,
         label: `${parseInt(h) < 12 ? 'Morning' : parseInt(h) < 17 ? 'Afternoon' : 'Evening'} News`,
         isReel: false,
-        cron: `${parseInt(m)} ${parseInt(h)} * * * (Asia/Bangkok)`
-      })
-    })
-
-    reels.forEach(time => {
-      const [h, m] = time.split(':')
-      items.push({
-        time,
-        label: `${parseInt(h) < 12 ? 'Morning' : parseInt(h) < 17 ? 'Afternoon' : 'Evening'} Reel`,
-        isReel: true,
         cron: `${parseInt(m)} ${parseInt(h)} * * * (Asia/Bangkok)`
       })
     })
@@ -559,20 +521,6 @@ export default function DashboardPage() {
               >
                 {triggeringNews ? <RefreshCw size={15} className="animate-spin" /> : <Radio size={15} />}
                 Force Run News
-              </button>
-              <button
-                onClick={handleTriggerReels}
-                disabled={triggeringReels}
-                style={{
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                  color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '10px 18px',
-                  fontWeight: 600, fontSize: 13.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                  boxShadow: '0 4px 12px rgba(139,92,246,0.25)', transition: 'all 0.2s',
-                  opacity: triggeringReels ? 0.7 : 1
-                }}
-              >
-                {triggeringReels ? <RefreshCw size={15} className="animate-spin" /> : <Activity size={15} />}
-                Force Run Reels
               </button>
             </div>
 
@@ -1302,60 +1250,6 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-
-              {/* Reels Schedule Card */}
-              <div className="table-card" style={{ padding: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Radio size={18} color="#7c3aed" />
-                  ตารางเวลาโพสต์ Reels (Reels Schedule)
-                </h3>
-                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>ตั้งค่าช่วงเวลาโพสต์วิดีโอสั้น / Reels</p>
-
-                {/* Add new time row */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  <input
-                    type="time"
-                    value={newReelTime}
-                    onChange={(e) => setNewReelTime(e.target.value)}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-main)',
-                      outline: 'none', background: 'var(--bg-hover)', fontSize: 14, flex: 1
-                    }}
-                  />
-                  <button
-                    onClick={addReelTime}
-                    className="btn-refresh"
-                    style={{ background: '#7c3aed', color: 'var(--bg-card)', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    เพิ่มเวลา
-                  </button>
-                </div>
-
-                {/* Times list */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {editedReels.length === 0 ? (
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', width: '100%', textAlign: 'center', padding: '12px 0' }}>ไม่มีกำหนดเวลาโพสต์ Reels</div>
-                  ) : (
-                    editedReels.map(time => (
-                      <span key={time} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe',
-                        borderRadius: 6, padding: '5px 10px', fontSize: 13, fontWeight: 600
-                      }}>
-                        {time}
-                        <button
-                          onClick={() => removeReelTime(time)}
-                          style={{ background: 'none', border: 'none', color: '#6d28d9', cursor: 'pointer', display: 'flex', padding: 0 }}
-                          title="Remove time"
-                        >
-                          <X size={13} />
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
 
             {/* Save Button Card */}
             <div className="table-card" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

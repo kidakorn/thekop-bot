@@ -308,14 +308,31 @@ async function isScheduledTime() {
 	return false
 }
 
+// Auto-delete posts older than 24 hours to save Database space
+async function cleanupOldPosts() {
+	try {
+		const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+		const deleted = await prisma.post.deleteMany({
+			where: { createdAt: { lt: oneDayAgo } }
+		})
+		if (deleted.count > 0) {
+			console.log(`🧹 Cleaned up ${deleted.count} old posts (>24hrs).`)
+		}
+	} catch (err) {
+		console.error('❌ Failed to clean up old posts:', err.message)
+	}
+}
+
 // Entry point based on CLI arguments
 const args = process.argv.slice(2)
 
 async function main() {
 	try {
 		if (args.includes('--news')) {
+			await cleanupOldPosts()
 			await runBot()
 		} else if (args.includes('--scheduled-news')) {
+			await cleanupOldPosts()
 			if (await isScheduledTime()) {
 				await runBot()
 			} else {
