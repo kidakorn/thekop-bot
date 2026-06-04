@@ -284,7 +284,7 @@ async function refreshFacebookToken() {
 	}
 }
 
-// Check if current time is within 20 minutes of a scheduled time
+// Check if current hour has a schedule, and if we haven't posted in the last 50 minutes
 async function isScheduledTime() {
 	const dbNewsSetting = await prisma.setting.findUnique({ where: { key: 'news_schedule' } })
 	let newsTimes = ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
@@ -294,18 +294,24 @@ async function isScheduledTime() {
 
 	const now = new Date()
 	const currentHour = now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok', hour: '2-digit', hourCycle: 'h23' })
-	const currentMinute = parseInt(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok', minute: '2-digit' }), 10)
 
-	const scheduledMinutes = newsTimes
-		.filter(t => t.startsWith(currentHour + ':'))
-		.map(t => parseInt(t.split(':')[1], 10))
+	// Check if this hour is in the schedule
+	const hasScheduleThisHour = newsTimes.some(t => t.startsWith(currentHour + ':'))
+	if (!hasScheduleThisHour) return false
 
-	if (scheduledMinutes.length === 0) return false
+	// Check if we already posted in the last 50 minutes to avoid duplicate posts for the same schedule
+	const fiftyMinutesAgo = new Date(Date.now() - 50 * 60 * 1000)
+	const recentPost = await prisma.post.findFirst({
+		where: { createdAt: { gte: fiftyMinutesAgo } },
+		orderBy: { createdAt: 'desc' }
+	})
 
-	for (const sm of scheduledMinutes) {
-		if (Math.abs(currentMinute - sm) <= 20) return true
+	if (recentPost) {
+		console.log(`⏰ Schedule for ${currentHour}:00 is already fulfilled (last post was at ${recentPost.createdAt.toISOString()}). Skipping run.`)
+		return false
 	}
-	return false
+
+	return true
 }
 
 // Auto-delete posts older than 24 hours to save Database space
