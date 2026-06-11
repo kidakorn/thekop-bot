@@ -120,9 +120,12 @@ async function postToFacebook(caption, link, base64Image, rawTitle) {
 
 	if (!accessToken || !pageId) throw new Error('Missing Facebook Page ID or Access Token')
 
-	const fullCaption = `${caption}\n\nอ่านต่อได้ที่: ${link}\n\n#Liverpool #LFC #YNWA #คอบอลเดอะค็อป #ลิเวอร์พูล`
+	const fullCaption = `${caption}\n\n#Liverpool #LFC #YNWA #คอบอลเดอะค็อป #ลิเวอร์พูล`
+	const commentText = `อ่านรายละเอียดข่าวฉบับเต็มได้ที่นี่ 👇\n${link}`
+	let fbPostId = null
 
 	if (base64Image) {
+		// 1. Post Photo
 		const formData = new FormData()
 		const imageBuffer = Buffer.from(base64Image, 'base64')
 		formData.append('source', imageBuffer, { filename: 'image.jpg', contentType: 'image/jpeg' })
@@ -134,8 +137,22 @@ async function postToFacebook(caption, link, base64Image, rawTitle) {
 			formData,
 			{ headers: formData.getHeaders(), timeout: 60000 }
 		)
-		return response.data.id
+		fbPostId = response.data.id
+
+		// 2. Post Comment with Link
+		try {
+			await axios.post(
+				`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
+				{ message: commentText, access_token: accessToken }
+			)
+			console.log(`💬 Added link to the first comment of post ${fbPostId}`)
+		} catch (commentErr) {
+			console.error(`⚠️ Failed to add comment to post ${fbPostId}:`, commentErr.response?.data || commentErr.message)
+		}
+
+		return fbPostId
 	} else {
+		// Fallback to Link Post if no image
 		const response = await axios.post(
 			`https://graph.facebook.com/v20.0/${pageId}/feed`,
 			{ message: fullCaption, link, access_token: accessToken }
