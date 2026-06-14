@@ -116,8 +116,10 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ news_schedule: string[]; rss_feeds?: {name: string, url: string}[], disable_ai?: boolean }>('/api/settings', fetcher)
+    useSWR<{ pageId?: string; pageAccessToken?: string; news_schedule: string[]; rss_feeds?: {name: string, url: string}[], disable_ai?: boolean }>('/api/settings', fetcher)
 
+  const [editedPageId, setEditedPageId] = useState('')
+  const [editedPageAccessToken, setEditedPageAccessToken] = useState('')
   const [editedNews, setEditedNews] = useState<string[]>([])
   const [editedFeeds, setEditedFeeds] = useState<{name: string, url: string}[]>([])
   const [editedDisableAi, setEditedDisableAi] = useState<boolean>(false)
@@ -125,11 +127,14 @@ export default function DashboardPage() {
   const [newFeedName, setNewFeedName] = useState('')
   const [newFeedUrl, setNewFeedUrl] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
+  const [showTutorialModal, setShowTutorialModal] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settingsData) {
-      setEditedNews(settingsData.news_schedule)
+      setEditedPageId(settingsData.pageId || '')
+      setEditedPageAccessToken(settingsData.pageAccessToken || '')
+      setEditedNews(settingsData.news_schedule || [])
       if (settingsData.rss_feeds) {
         setEditedFeeds(settingsData.rss_feeds)
       }
@@ -173,6 +178,8 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          pageId: editedPageId,
+          pageAccessToken: editedPageAccessToken,
           news_schedule: editedNews,
           rss_feeds: editedFeeds,
           disable_ai: editedDisableAi
@@ -1092,38 +1099,54 @@ export default function DashboardPage() {
             </div>
 
             <div className="table-card" style={{ marginBottom: 20 }}>
-              <div className="table-card-header">
-                <div className="table-card-title">Configuration</div>
-                <div className="table-card-meta">Environment variables</div>
+              <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="table-card-title">Facebook Page Integration</div>
+                  <div className="table-card-meta">ตั้งค่า Facebook Page ID และ Access Token ของเพจคุณ</div>
+                </div>
+                <button 
+                  onClick={() => setShowTutorialModal(true)}
+                  style={{
+                    background: 'var(--bg-hover)', color: '#3b82f6', border: '1px solid #3b82f633',
+                    padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  วิธีดึง Token
+                </button>
               </div>
-              {[
-                { key: 'PAGE_ID', label: 'Facebook Page ID', secret: false },
-                { key: 'PAGE_ACCESS_TOKEN', label: 'FB Access Token', secret: true },
-                { key: 'APP_ID', label: 'App ID', secret: false },
-                { key: 'DATABASE_URL', label: 'Database URL', secret: true },
-              ].map((item, i, arr) => (
-                <div key={item.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '14px 20px', borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none',
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 9, background: 'var(--bg-hover)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <Settings size={15} color="var(--text-muted)" />
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Facebook Page ID</label>
+                    <input 
+                      type="text"
+                      value={editedPageId}
+                      onChange={e => setEditedPageId(e.target.value)}
+                      placeholder="e.g. 123456789012345"
+                      style={{
+                        width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-main)',
+                        background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 14, outline: 'none'
+                      }}
+                    />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.label}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-muted-light)', fontFamily: 'monospace' }}>
-                      {item.secret ? '●●●●●●●●●●●●' : item.key}
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Page Access Token (Long-lived)</label>
+                    <input 
+                      type="password"
+                      value={editedPageAccessToken}
+                      onChange={e => setEditedPageAccessToken(e.target.value)}
+                      placeholder="EAACBGZCmVi..."
+                      style={{
+                        width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-main)',
+                        background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 14, outline: 'none'
+                      }}
+                    />
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>
+                      Token จะต้องเป็นแบบไม่มีวันหมดอายุ และมีสิทธิ์ pages_manage_posts, pages_read_engagement
                     </div>
                   </div>
-                  <span className="badge-status badge-posted">
-                    <span style={{ width: 5, height: 5, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
-                    Set
-                  </span>
                 </div>
-              ))}
+              </div>
             </div>
 
             {/* RSS Feeds Settings Card */}
@@ -1392,6 +1415,66 @@ export default function DashboardPage() {
             @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
             @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
           `}} />
+        </div>
+      )}
+      {/* Tutorial Modal */}
+      {showTutorialModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '90vh',
+            overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid var(--border-main)'
+          }}>
+            <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>วิธีเอา Facebook Page Token (ไม่มีวันหมดอายุ)</h3>
+              <button onClick={() => setShowTutorialModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 24, fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6 }}>
+              <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <li>
+                  <strong>ไปที่ Facebook Developers</strong>
+                  <div>เข้าเว็บ <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>developers.facebook.com</a> สร้าง App เลือกประเภทเป็น <b>Business</b></div>
+                </li>
+                <li>
+                  <strong>เพิ่มผลิตภัณฑ์ Facebook Login for Business</strong>
+                  <div>ในหน้า App Dashboard เลือก Add Product &gt; <b>Facebook Login for Business</b></div>
+                </li>
+                <li>
+                  <strong>สร้าง Short-lived Token</strong>
+                  <div>ไปที่ <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>Graph API Explorer</a></div>
+                  <ul style={{ paddingLeft: 20, marginTop: 4, color: 'var(--text-muted)' }}>
+                    <li>เลือก Facebook App ของคุณ</li>
+                    <li>ตรง User or Page เลือก <b>"Get Page Access Token"</b> (เลือกเพจของคุณ)</li>
+                    <li>เพิ่ม Permissions: <code>pages_manage_posts</code>, <code>pages_read_engagement</code></li>
+                    <li>กด <b>Generate Access Token</b> (ก็อปปี้ไว้)</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>แปลงเป็น Long-lived Token (อยู่ได้ 60 วัน)</strong>
+                  <div>ไปที่แถบเครื่องมือ <b>Access Token Debugger</b> เอา Token ที่ได้ไปวางแล้วกด <b>Extend Access Token</b></div>
+                </li>
+                <li>
+                  <strong>แปลงเป็น Permanent Token (ไม่มีวันหมดอายุ)</strong>
+                  <div style={{ background: 'var(--bg-main)', padding: 12, borderRadius: 8, marginTop: 8, fontFamily: 'monospace', fontSize: 12, overflowX: 'auto', border: '1px solid var(--border-light)' }}>
+                    https://graph.facebook.com/v19.0/<b>&#123;PAGE_ID&#125;</b>?fields=access_token&access_token=<b>&#123;LONG_LIVED_TOKEN_จากข้อ4&#125;</b>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    เอา URL ด้านบนไปเปิดในเบราว์เซอร์ (แก้ค่าในวงเล็บให้ถูกต้อง) <br/>
+                    คุณจะได้ JSON กลับมา มี <code>"access_token"</code> ที่ <b>"ไม่มีวันหมดอายุ"</b> เอาค่านั้นมาใส่ในระบบได้เลย! 🎉
+                  </div>
+                </li>
+              </ol>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-main)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowTutorialModal(false)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
+                เข้าใจแล้ว ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

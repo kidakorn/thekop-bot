@@ -1,32 +1,37 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { auth } from '@/lib/auth'
 
 export async function GET() {
 	try {
-		const settings = await prisma.setting.findMany()
-		const config: Record<string, string> = {}
-		settings.forEach((s: { key: string, value: string }) => {
-			config[s.key] = s.value
+		const session = await auth()
+		if (!session?.user?.id) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+
+		const userId = session.user.id
+
+		// Fetch page settings
+		let pageSetting = await prisma.pageSetting.findUnique({
+			where: { userId }
 		})
 
-		const newsSchedule = config.news_schedule
-			? JSON.parse(config.news_schedule)
-			: ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
+		// Fetch RSS feeds
+		const rssFeeds = await prisma.rssSource.findMany({
+			where: { userId },
+			select: { id: true, name: true, url: true, isActive: true }
+		})
 
-		const rssFeeds = config.rss_feeds
-			? JSON.parse(config.rss_feeds)
-			: [
-				{ name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml' },
-				{ name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss' },
-				{ name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news/rss.xml' },
-			]
-
-		const disableAi = config.disable_ai === 'true'
-
+		// Return default settings if none exists
 		return NextResponse.json({
-			news_schedule: newsSchedule,
-			rss_feeds: rssFeeds,
-			disable_ai: disableAi,
+			pageId: pageSetting?.pageId || '',
+			pageAccessToken: pageSetting?.pageAccessToken || '',
+			news_schedule: pageSetting?.newsSchedule ? JSON.parse(pageSetting.newsSchedule) : ['08:00', '12:00', '16:00', '20:00'],
+			rss_feeds: rssFeeds.length > 0 ? rssFeeds : [
+				{ name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml', isActive: true },
+				{ name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss', isActive: true },
+			],
+			disable_ai: pageSetting?.disableAi || false,
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings GET error:', error)
@@ -36,10 +41,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
 	try {
-		const body = await request.json()
-		const { news_schedule, rss_feeds, disable_ai } = body
+		const session = await auth()
+		if (!session?.user?.id) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+		const userId = session.user.id
 
-		if (!Array.isArray(news_schedule)) {
+		const body = await request.json()
+		const { pageId, pageAccessToken, news_schedule, rss_feeds, disable_ai } = body
+
+		if (news_schedule && !Array.isArray(news_schedule)) {
 			return NextResponse.json({ error: 'Invalid schedules format' }, { status: 400 })
 		}
 		
@@ -47,52 +58,50 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: 'Invalid rss_feeds format' }, { status: 400 })
 		}
 
-		// Validate that each item is in HH:MM format
-		const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-		const allValidNews = news_schedule.every((t: string) => timeRegex.test(t))
+		// Update or Create PageSetting
+		const updatedPageSetting = await prisma.pageSetting.upsert({
+			where: { userId },
+			update: {
+				...(pageId !== undefined && { pageId }),
+				...(pageAccessToken !== undefined && { pageAccessToken }),
+				...(news_schedule && { newsSchedule: JSON.stringify(news_schedule.sort()) }),
+				...(typeof disable_ai === 'boolean' && { disableAi: disable_ai }),
+			},
+			create: {
+				userId,
+				pageId: pageId || '',
+				pageAccessToken: pageAccessToken || '',
+				newsSchedule: news_schedule ? JSON.stringify(news_schedule.sort()) : JSON.stringify(['08:00', '12:00', '16:00', '20:00']),
+				disableAi: typeof disable_ai === 'boolean' ? disable_ai : false,
+			}
+		})
 
-		if (!allValidNews) {
-			return NextResponse.json({ error: 'Schedules must be in HH:MM format (24-hour)' }, { status: 400 })
-		}
-
-		// Sort schedules chronologically
-		const sortedNews = [...news_schedule].sort()
-
-		const transactions = [
-			prisma.setting.upsert({
-				where: { key: 'news_schedule' },
-				update: { value: JSON.stringify(sortedNews) },
-				create: { key: 'news_schedule', value: JSON.stringify(sortedNews) },
-			})
-		]
-		
+		// Update RSS Feeds (Replace all for this user for simplicity)
 		if (rss_feeds) {
-			transactions.push(
-				prisma.setting.upsert({
-					where: { key: 'rss_feeds' },
-					update: { value: JSON.stringify(rss_feeds) },
-					create: { key: 'rss_feeds', value: JSON.stringify(rss_feeds) },
+			await prisma.$transaction([
+				prisma.rssSource.deleteMany({ where: { userId } }),
+				prisma.rssSource.createMany({
+					data: rss_feeds.map((f: any) => ({
+						userId,
+						name: f.name,
+						url: f.url,
+						isActive: f.isActive ?? true
+					}))
 				})
-			)
-		}
-		
-		if (typeof disable_ai === 'boolean') {
-			transactions.push(
-				prisma.setting.upsert({
-					where: { key: 'disable_ai' },
-					update: { value: disable_ai ? 'true' : 'false' },
-					create: { key: 'disable_ai', value: disable_ai ? 'true' : 'false' },
-				})
-			)
+			])
 		}
 
-		await prisma.$transaction(transactions)
+		const newRssFeeds = await prisma.rssSource.findMany({
+			where: { userId },
+			select: { id: true, name: true, url: true, isActive: true }
+		})
 
 		return NextResponse.json({ 
 			success: true, 
-			news_schedule: sortedNews, 
-			rss_feeds: rss_feeds,
-			disable_ai: disable_ai
+			pageId: updatedPageSetting.pageId,
+			news_schedule: updatedPageSetting.newsSchedule ? JSON.parse(updatedPageSetting.newsSchedule) : [], 
+			rss_feeds: newRssFeeds,
+			disable_ai: updatedPageSetting.disableAi
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings POST error:', error)
