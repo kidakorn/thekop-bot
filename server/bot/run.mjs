@@ -142,7 +142,7 @@ async function getArticleImage(url) {
 }
 
 // Post to Facebook Page
-async function postToFacebook(caption, link, base64Image, rawTitle, pageSetting) {
+async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting) {
 	const { pageId } = pageSetting
 	const pageAccessToken = decryptToken(pageSetting.pageAccessToken)
 
@@ -152,18 +152,11 @@ async function postToFacebook(caption, link, base64Image, rawTitle, pageSetting)
 	const commentText = `อ่านรายละเอียดข่าวฉบับเต็มได้ที่นี่ 👇\n${link}`
 	let fbPostId = null
 
-	if (base64Image) {
+	if (imageUrl) {
 		// 1. Post Photo
-		const formData = new FormData()
-		const imageBuffer = Buffer.from(base64Image, 'base64')
-		formData.append('source', imageBuffer, { filename: 'image.jpg', contentType: 'image/jpeg' })
-		formData.append('message', fullCaption)
-		formData.append('access_token', pageAccessToken)
-
 		const response = await axios.post(
 			`https://graph.facebook.com/v20.0/${pageId}/photos`,
-			formData,
-			{ headers: formData.getHeaders(), timeout: 60000 }
+			{ url: imageUrl, message: fullCaption, access_token: pageAccessToken }
 		)
 		fbPostId = response.data.id
 
@@ -268,19 +261,10 @@ async function runBotForUser(pageSetting, activeFeeds) {
 			},
 		})
 
-		let imageBase64 = null
 		const articleImageUrl = latest.image || await getArticleImage(latest.link)
-		if (articleImageUrl) {
-			try {
-				const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
-				imageBase64 = Buffer.from(imgRes.data).toString('base64')
-			} catch (err) {
-				console.warn('⚠️ Failed to download article image')
-			}
-		}
 
 		console.log(`📢 Posting for User [${pageSetting.userId}]...`)
-		const fbPostId = await postToFacebook(thaiSummary, latest.link, imageBase64, latest.title, pageSetting)
+		const fbPostId = await postToFacebook(thaiSummary, latest.link, articleImageUrl, latest.title, pageSetting)
 
 		// Update status to POSTED
 		await prisma.post.update({
