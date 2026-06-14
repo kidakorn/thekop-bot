@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { auth } from '@/lib/auth'
+import { encryptToken } from '@/lib/crypto'
+
+const MASKED_TOKEN = 'EAAC********'
 
 export async function GET() {
 	try {
@@ -25,7 +28,7 @@ export async function GET() {
 		// Return default settings if none exists
 		return NextResponse.json({
 			pageId: pageSetting?.pageId || '',
-			pageAccessToken: pageSetting?.pageAccessToken || '',
+			pageAccessToken: pageSetting?.pageAccessToken ? MASKED_TOKEN : '',
 			news_schedule: pageSetting?.newsSchedule ? JSON.parse(pageSetting.newsSchedule) : ['08:00', '12:00', '16:00', '20:00'],
 			rss_feeds: rssFeeds.length > 0 ? rssFeeds : [
 				{ name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml', isActive: true },
@@ -59,19 +62,34 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: 'Invalid rss_feeds format' }, { status: 400 })
 		}
 
+		// Handle token encryption
+		let finalPageAccessToken: string | undefined = undefined
+		if (pageAccessToken !== undefined) {
+			if (pageAccessToken === MASKED_TOKEN) {
+				// User didn't change the token, so we do NOT update it
+				finalPageAccessToken = undefined
+			} else if (pageAccessToken === '') {
+				// User cleared the token
+				finalPageAccessToken = ''
+			} else {
+				// User provided a new token, encrypt it
+				finalPageAccessToken = encryptToken(pageAccessToken)
+			}
+		}
+
 		// Update or Create PageSetting
 		const updatedPageSetting = await prisma.pageSetting.upsert({
 			where: { userId },
 			update: {
 				...(pageId !== undefined && { pageId }),
-				...(pageAccessToken !== undefined && { pageAccessToken }),
+				...(finalPageAccessToken !== undefined && { pageAccessToken: finalPageAccessToken }),
 				...(news_schedule && { newsSchedule: JSON.stringify(news_schedule.sort()) }),
 				...(typeof disable_ai === 'boolean' && { disableAi: disable_ai }),
 			},
 			create: {
 				userId,
 				pageId: pageId || '',
-				pageAccessToken: pageAccessToken || '',
+				pageAccessToken: finalPageAccessToken || '',
 				newsSchedule: news_schedule ? JSON.stringify(news_schedule.sort()) : JSON.stringify(['08:00', '12:00', '16:00', '20:00']),
 				disableAi: typeof disable_ai === 'boolean' ? disable_ai : false,
 			}

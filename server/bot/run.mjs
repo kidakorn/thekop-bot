@@ -6,6 +6,40 @@ import pg from 'pg'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { translate } from 'google-translate-api-x'
+import crypto from 'crypto'
+
+const ALGORITHM = 'aes-256-gcm'
+
+function getKey() {
+  const secret = process.env.NEXTAUTH_SECRET || 'fallback_secret_for_development_only_123'
+  return crypto.scryptSync(secret, 'salt', 32)
+}
+
+function decryptToken(encryptedText) {
+  if (!encryptedText) return encryptedText
+  
+  try {
+    const parts = encryptedText.split(':')
+    if (parts.length !== 3) {
+      return encryptedText
+    }
+    
+    const [ivHex, authTagHex, encryptedDataHex] = parts
+    const iv = Buffer.from(ivHex, 'hex')
+    const authTag = Buffer.from(authTagHex, 'hex')
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv)
+    decipher.setAuthTag(authTag)
+    
+    let decrypted = decipher.update(encryptedDataHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    
+    return decrypted
+  } catch (err) {
+    console.error('Decryption error (might be plain-text token):', err.message)
+    return encryptedText
+  }
+}
 
 // Initialize Prisma
 const { Pool } = pg
@@ -101,7 +135,8 @@ async function getArticleImage(url) {
 
 // Post to Facebook Page
 async function postToFacebook(caption, link, base64Image, rawTitle, pageSetting) {
-	const { pageId, pageAccessToken } = pageSetting
+	const { pageId } = pageSetting
+	const pageAccessToken = decryptToken(pageSetting.pageAccessToken)
 
 	if (!pageAccessToken || !pageId) throw new Error('Missing Facebook Page ID or Access Token')
 
