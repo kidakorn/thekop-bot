@@ -37,8 +37,5 @@ jobs:
       - name: Run Bot
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          PAGE_ID: ${{ secrets.PAGE_ID }}
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_SECRET: ${{ secrets.APP_SECRET }}
-          PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
         run: npm run bot -- ${{ steps.cmd.outputs.command }}
