@@ -3,7 +3,6 @@ import axios from 'axios'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
-import path from 'path'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { translate } from 'google-translate-api-x'
@@ -14,11 +13,10 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
-const RSS_FEEDS = [
+const DEFAULT_RSS_FEEDS = [
 	'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
 	'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss',
-	'https://www.thisisanfield.com/feed/',
-	'https://www.empireofthekop.com/feed/',
+	'https://www.liverpoolfc.com/news/rss.xml',
 ]
 
 // Parse RSS XML to array
@@ -56,16 +54,8 @@ function parseRSS(xmlText) {
 	return items
 }
 
-async function fetchNews() {
+async function fetchNews(activeFeeds) {
 	const allItems = []
-	const dbFeedsSetting = await prisma.setting.findUnique({ where: { key: 'rss_feeds' } })
-	let activeFeeds = RSS_FEEDS
-	if (dbFeedsSetting) {
-		try {
-			const customFeeds = JSON.parse(dbFeedsSetting.value)
-			if (customFeeds.length > 0) activeFeeds = customFeeds.map(f => f.url)
-		} catch (e) { }
-	}
 
 	for (const url of activeFeeds) {
 		try {
@@ -106,19 +96,11 @@ async function getArticleImage(url) {
 	}
 }
 
-// Get Facebook Page Access Token (from DB or fallback to ENV)
-async function getFacebookToken() {
-	const dbToken = await prisma.setting.findUnique({ where: { key: 'fb_page_token' } })
-	if (dbToken && dbToken.value) return dbToken.value
-	return process.env.PAGE_ACCESS_TOKEN
-}
-
 // Post to Facebook Page
-async function postToFacebook(caption, link, base64Image, rawTitle) {
-	const pageId = process.env.PAGE_ID
-	const accessToken = await getFacebookToken()
+async function postToFacebook(caption, link, base64Image, rawTitle, pageSetting) {
+	const { pageId, pageAccessToken } = pageSetting
 
-	if (!accessToken || !pageId) throw new Error('Missing Facebook Page ID or Access Token')
+	if (!pageAccessToken || !pageId) throw new Error('Missing Facebook Page ID or Access Token')
 
 	const fullCaption = `${caption}\n\n#Liverpool #LFC #YNWA #คอบอลเดอะค็อป #ลิเวอร์พูล`
 	const commentText = `อ่านรายละเอียดข่าวฉบับเต็มได้ที่นี่ 👇\n${link}`
@@ -130,7 +112,7 @@ async function postToFacebook(caption, link, base64Image, rawTitle) {
 		const imageBuffer = Buffer.from(base64Image, 'base64')
 		formData.append('source', imageBuffer, { filename: 'image.jpg', contentType: 'image/jpeg' })
 		formData.append('message', fullCaption)
-		formData.append('access_token', accessToken)
+		formData.append('access_token', pageAccessToken)
 
 		const response = await axios.post(
 			`https://graph.facebook.com/v20.0/${pageId}/photos`,
@@ -143,7 +125,7 @@ async function postToFacebook(caption, link, base64Image, rawTitle) {
 		try {
 			await axios.post(
 				`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
-				{ message: commentText, access_token: accessToken }
+				{ message: commentText, access_token: pageAccessToken }
 			)
 			console.log(`💬 Added link to the first comment of post ${fbPostId}`)
 		} catch (commentErr) {
@@ -155,34 +137,37 @@ async function postToFacebook(caption, link, base64Image, rawTitle) {
 		// Fallback to Link Post if no image
 		const response = await axios.post(
 			`https://graph.facebook.com/v20.0/${pageId}/feed`,
-			{ message: fullCaption, link, access_token: accessToken }
+			{ message: fullCaption, link, access_token: pageAccessToken }
 		)
 		return response.data.id
 	}
 }
 
-// Core bot function
-async function runBot() {
+// Core bot function for a specific user
+async function runBotForUser(pageSetting, activeFeeds) {
 	let post = null
 	try {
-		console.log('📰 Fetching Liverpool news...')
-		const news = await fetchNews()
+		console.log(`\n📰 Fetching Liverpool news for User [${pageSetting.userId}]...`)
+		const news = await fetchNews(activeFeeds)
 
 		if (!news.length) {
-			console.warn('⚠️ No new articles found')
+			console.warn(`⚠️ No new articles found for User [${pageSetting.userId}]`)
 			return
 		}
 
-		// Anti-duplicate logic
+		// Anti-duplicate logic for this user
 		const recentPosts = await prisma.post.findMany({
-			where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+			where: { 
+				userId: pageSetting.userId,
+				createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
+			},
 			select: { title: true }
 		})
 
 		const isDuplicate = (newTitle) => {
-			const newWords = newTitle.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+			const newWords = newTitle.toLowerCase().split(/[\W_]+/).filter(w => w.length > 3)
 			return recentPosts.some(p => {
-				const oldWords = p.title.toLowerCase().split(/[\\W_]+/).filter(w => w.length > 3)
+				const oldWords = p.title.toLowerCase().split(/[\W_]+/).filter(w => w.length > 3)
 				const matchCount = newWords.filter(w => oldWords.includes(w)).length
 				return matchCount >= 4
 			})
@@ -190,7 +175,9 @@ async function runBot() {
 
 		let latest = null
 		for (const item of news) {
-			const existing = await prisma.post.findFirst({ where: { link: item.link } })
+			const existing = await prisma.post.findFirst({ 
+				where: { userId: pageSetting.userId, link: item.link } 
+			})
 			if (!existing && !isDuplicate(item.title)) {
 				latest = item
 				break
@@ -198,31 +185,36 @@ async function runBot() {
 		}
 
 		if (!latest) {
-			console.warn('⚠️ No unposted new articles found in the fetched list')
+			console.warn(`⚠️ No unposted new articles found for User [${pageSetting.userId}]`)
 			return
 		}
 
 		let thaiSummary = latest.description
-		console.log('🤖 AI is removed. Translating using google-translate-api-x...')
 		
-		try {
-			const titleRes = await translate(latest.title, { to: 'th' })
-			const descRes = await translate(latest.description, { to: 'th' })
-			
-			const translatedTitle = titleRes.text
-			let translatedDesc = descRes.text
-			// Truncate description if too long
-			translatedDesc = translatedDesc.slice(0, 300) + (translatedDesc.length > 300 ? '...' : '')
-			
-			thaiSummary = `${translatedTitle}\n\n${translatedDesc}`
-		} catch (err) {
-			console.warn('⚠️ Free translation failed, falling back to raw English:', err.message)
+		if (pageSetting.disableAi) {
+			console.log(`🤖 AI is disabled for User [${pageSetting.userId}]. Using raw English.`)
 			thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 300)}...`
+		} else {
+			console.log(`🤖 Translating using google-translate-api-x for User [${pageSetting.userId}]...`)
+			try {
+				const titleRes = await translate(latest.title, { to: 'th' })
+				const descRes = await translate(latest.description, { to: 'th' })
+				
+				const translatedTitle = titleRes.text
+				let translatedDesc = descRes.text
+				translatedDesc = translatedDesc.slice(0, 300) + (translatedDesc.length > 300 ? '...' : '')
+				
+				thaiSummary = `${translatedTitle}\n\n${translatedDesc}`
+			} catch (err) {
+				console.warn(`⚠️ Free translation failed for User [${pageSetting.userId}], falling back to raw English:`, err.message)
+				thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 300)}...`
+			}
 		}
 
 		// Save to DB with PENDING status
 		post = await prisma.post.create({
 			data: {
+				userId: pageSetting.userId,
 				title: latest.title,
 				content: thaiSummary,
 				link: latest.link,
@@ -241,8 +233,8 @@ async function runBot() {
 			}
 		}
 
-		console.log(`📢 Posting...`)
-		const fbPostId = await postToFacebook(thaiSummary, latest.link, imageBase64, latest.title)
+		console.log(`📢 Posting for User [${pageSetting.userId}]...`)
+		const fbPostId = await postToFacebook(thaiSummary, latest.link, imageBase64, latest.title, pageSetting)
 
 		// Update status to POSTED
 		await prisma.post.update({
@@ -250,9 +242,9 @@ async function runBot() {
 			data: { status: 'POSTED', fbPostId, postedAt: new Date() },
 		})
 
-		console.log(`✅ Posted! FB Post ID: ${fbPostId}`)
+		console.log(`✅ Posted! FB Post ID: ${fbPostId} for User [${pageSetting.userId}]`)
 	} catch (err) {
-		console.error('❌ Bot error:', err.message)
+		console.error(`❌ Bot error for User [${pageSetting.userId}]:`, err.message)
 		if (err.response && err.response.data) {
 			console.error('❌ Response data:', JSON.stringify(err.response.data, null, 2))
 		}
@@ -267,46 +259,11 @@ async function runBot() {
 	}
 }
 
-// Manual token refresh logic (save to DB)
-async function refreshFacebookToken() {
-	try {
-		console.log('🔄 Refreshing Facebook Long-lived token...')
-		const { APP_ID, APP_SECRET } = process.env
-		const currentToken = await getFacebookToken()
-
-		if (!APP_ID || !APP_SECRET || !currentToken) {
-			throw new Error('Missing APP_ID, APP_SECRET, or current token.')
-		}
-
-		const response = await axios.get(`https://graph.facebook.com/v20.0/oauth/access_token`, {
-			params: {
-				grant_type: 'fb_exchange_token',
-				client_id: APP_ID,
-				client_secret: APP_SECRET,
-				fb_exchange_token: currentToken
-			}
-		})
-
-		const newToken = response.data.access_token
-		
-		await prisma.setting.upsert({
-			where: { key: 'fb_page_token' },
-			update: { value: newToken },
-			create: { key: 'fb_page_token', value: newToken }
-		})
-
-		console.log('✅ Token successfully refreshed and saved to Database.')
-	} catch (err) {
-		console.error('❌ Failed to refresh Facebook token:', err.response?.data || err.message)
-	}
-}
-
-// Check if current hour has a schedule, and if we haven't posted in the last 50 minutes
-async function isScheduledTime() {
-	const dbNewsSetting = await prisma.setting.findUnique({ where: { key: 'news_schedule' } })
-	let newsTimes = ['08:00', '11:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']
-	if (dbNewsSetting) {
-		try { newsTimes = JSON.parse(dbNewsSetting.value) } catch (e) { }
+// Check if current hour has a schedule, and if we haven't posted in the last 50 minutes for this user
+async function isScheduledTime(pageSetting) {
+	let newsTimes = ['08:00', '12:00', '16:00', '20:00']
+	if (pageSetting.newsSchedule) {
+		try { newsTimes = JSON.parse(pageSetting.newsSchedule) } catch (e) { }
 	}
 
 	const now = new Date()
@@ -316,15 +273,18 @@ async function isScheduledTime() {
 	const hasScheduleThisHour = newsTimes.some(t => t.startsWith(currentHour + ':'))
 	if (!hasScheduleThisHour) return false
 
-	// Check if we already posted in the last 50 minutes to avoid duplicate posts for the same schedule
+	// Check if we already posted in the last 50 minutes to avoid duplicate posts
 	const fiftyMinutesAgo = new Date(Date.now() - 50 * 60 * 1000)
 	const recentPost = await prisma.post.findFirst({
-		where: { createdAt: { gte: fiftyMinutesAgo } },
+		where: { 
+			userId: pageSetting.userId,
+			createdAt: { gte: fiftyMinutesAgo } 
+		},
 		orderBy: { createdAt: 'desc' }
 	})
 
 	if (recentPost) {
-		console.log(`⏰ Schedule for ${currentHour}:00 is already fulfilled (last post was at ${recentPost.createdAt.toISOString()}). Skipping run.`)
+		console.log(`⏰ Schedule for ${currentHour}:00 is already fulfilled for User [${pageSetting.userId}] (last post at ${recentPost.createdAt.toISOString()}). Skipping.`)
 		return false
 	}
 
@@ -351,21 +311,43 @@ const args = process.argv.slice(2)
 
 async function main() {
 	try {
-		if (args.includes('--news')) {
-			await cleanupOldPosts()
-			await runBot()
-		} else if (args.includes('--scheduled-news')) {
-			await cleanupOldPosts()
-			if (await isScheduledTime()) {
-				await runBot()
-			} else {
-				console.log('⏰ Not a scheduled time. Skipping run.')
-			}
-		} else if (args.includes('--refresh-token')) {
-			await refreshFacebookToken()
-		} else {
-			console.log('⚠️ Please provide an argument: --news, --scheduled-news, or --refresh-token')
+		await cleanupOldPosts()
+		
+		const allSettings = await prisma.pageSetting.findMany()
+		
+		if (allSettings.length === 0) {
+			console.log('⚠️ No PageSettings found in database. Exiting.')
+			return
 		}
+
+		for (const pageSetting of allSettings) {
+			if (!pageSetting.pageId || !pageSetting.pageAccessToken) {
+				console.log(`⚠️ User [${pageSetting.userId}] has incomplete Facebook setup. Skipping.`)
+				continue
+			}
+
+			const rssSources = await prisma.rssSource.findMany({ 
+				where: { userId: pageSetting.userId, isActive: true } 
+			})
+			
+			const activeFeeds = rssSources.length > 0 
+				? rssSources.map(r => r.url) 
+				: DEFAULT_RSS_FEEDS
+
+			if (args.includes('--news')) {
+				await runBotForUser(pageSetting, activeFeeds)
+			} else if (args.includes('--scheduled-news')) {
+				if (await isScheduledTime(pageSetting)) {
+					await runBotForUser(pageSetting, activeFeeds)
+				} else {
+					console.log(`⏰ Not a scheduled time for User [${pageSetting.userId}]. Skipping.`)
+				}
+			} else {
+				console.log('⚠️ Please provide an argument: --news or --scheduled-news')
+				break
+			}
+		}
+
 	} catch (err) {
 		console.error('Fatal error:', err)
 	} finally {
