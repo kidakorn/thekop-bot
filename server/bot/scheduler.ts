@@ -7,7 +7,9 @@ import { prisma } from '../../lib/db'
 console.log('🔴 The Kop Bot started...')
 
 /**
- * Core bot function: fetch news → save to DB → post to Facebook
+ * Core bot function: fetch news → post to Facebook
+ * Note: This is a legacy scheduler for local dev only.
+ * Production uses run.mjs via GitHub Actions.
  */
 async function runBot(): Promise<void> {
 	try {
@@ -21,10 +23,12 @@ async function runBot(): Promise<void> {
 
 		const latest = news[0]
 
-		// Save to DB with PENDING status before posting
-		// Note: scheduler uses system owner - will be migrated in Phase 4
+		// Get first available user for post ownership
 		const systemUser = await prisma.user.findFirst()
-		if (!systemUser) throw new Error('No user found in DB. Please create an account first.')
+		if (!systemUser) {
+			console.warn('⚠️ No user in DB yet. Please register first at the web dashboard.')
+			return
+		}
 
 		const post = await prisma.post.create({
 			data: {
@@ -57,6 +61,7 @@ async function runBot(): Promise<void> {
 		console.error('❌ Bot error:', message)
 	}
 }
+
 
 // Schedule posts at 08:00, 12:00, 20:00 (UTC+7)
 cron.schedule('0 1 * * *', runBot) // 08:00 TH
