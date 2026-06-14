@@ -1088,8 +1088,8 @@ export default function DashboardPage() {
             <div className="table-card" style={{ marginBottom: 20 }}>
               <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div className="table-card-title">AI Generation</div>
-                  <div className="table-card-meta">Enable or disable all AI APIs (Text, Image, Video, Voice) to save quota.</div>
+                  <div className="table-card-title">ระบบแปลภาษาไทย (Google Translate)</div>
+                  <div className="table-card-meta">เปิดใช้งานเพื่อให้บอทแปลข่าวเป็นภาษาไทยอัตโนมัติ (ฟรี 100% ไม่ใช้ API Key)</div>
                 </div>
                 <button
                   onClick={async () => {
@@ -1106,9 +1106,9 @@ export default function DashboardPage() {
                         })
                       })
                       mutateSettings()
-                      showToast(newVal ? 'AI Generation Disabled' : 'AI Generation Enabled', 'success')
+                      showToast(newVal ? 'ปิดการแปลภาษาไทย (โพสต์อังกฤษล้วน)' : 'เปิดระบบแปลภาษาไทยแล้ว', 'success')
                     } catch(e) {
-                      showToast('Failed to save AI setting', 'error')
+                      showToast('Failed to save translation setting', 'error')
                     }
                   }}
                   style={{
@@ -1126,7 +1126,7 @@ export default function DashboardPage() {
                     gap: 8
                   }}
                 >
-                  {editedDisableAi ? 'AI Disabled' : 'AI Enabled'}
+                  {editedDisableAi ? 'ปิดการแปลภาษา' : 'เปิดแปลภาษา'}
                   <div style={{
                     width: 12, height: 12, borderRadius: '50%',
                     background: editedDisableAi ? '#ef4444' : '#fff'
