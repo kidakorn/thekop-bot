@@ -41,7 +41,11 @@ export const authConfig: NextAuthConfig = {
       }
 
       // Require authentication for all other routes
-      return isLoggedIn
+      if (!isLoggedIn) {
+        // Redirect manually without appending ?callbackUrl=
+        return Response.redirect(new URL('/login', nextUrl))
+      }
+      return true
     },
   },
   pages: {
