@@ -108,7 +108,7 @@ model PageSetting {
   pageId          String   // Facebook Page ID
   pageAccessToken String   // Facebook Page Access Token (long-lived)
   newsSchedule    String?  // JSON string of times e.g. '["08:00","12:00"]'
-  disableAi       Boolean  @default(false)
+  disableAi       Boolean  @default(true)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

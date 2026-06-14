@@ -32,7 +32,7 @@ export async function GET() {
 				{ name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss', isActive: true },
 				{ name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news/rss.xml', isActive: true },
 			],
-			disable_ai: pageSetting?.disableAi || false,
+			disable_ai: pageSetting?.disableAi ?? true,
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings GET error:', error)
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 				pageId: pageId || '',
 				pageAccessToken: pageAccessToken || '',
 				newsSchedule: news_schedule ? JSON.stringify(news_schedule.sort()) : JSON.stringify(['08:00', '12:00', '16:00', '20:00']),
-				disableAi: typeof disable_ai === 'boolean' ? disable_ai : false,
+				disableAi: typeof disable_ai === 'boolean' ? disable_ai : true,
 			}
 		})
 

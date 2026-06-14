@@ -1192,7 +1192,13 @@ export default function DashboardPage() {
                 <Rss size={18} color="#f59e0b" />
                 แหล่งที่มาของข่าว (RSS Sources)
               </h3>
-              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>ตั้งค่า RSS Feed สำหรับให้บอทดึงข่าวอัตโนมัติ</p>
+              <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
+                <p style={{ margin: '0 0 6px 0' }}>ตั้งค่า RSS Feed สำหรับให้บอทดึงข่าวอัตโนมัติ</p>
+                <div style={{ padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6, border: '1px dashed var(--border-main)', display: 'inline-block' }}>
+                  <strong>วิธีหาลิงก์ RSS:</strong> เว็บข่าวส่วนใหญ่จะมี RSS ให้บริการ ลองค้นหาคำว่า "RSS" บนหน้าเว็บนั้นๆ 
+                  หรือลองเติม <code>/rss</code> หรือ <code>/feed</code> ต่อท้าย URL เว็บไซต์ (เช่น <code>https://www.example.com/feed</code>)
+                </div>
+              </div>
 
               {/* Add new feed row */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
