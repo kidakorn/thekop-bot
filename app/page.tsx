@@ -131,7 +131,7 @@ export default function DashboardPage() {
   const [newFeedUrl, setNewFeedUrl] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
-
+  const [showRssTutorialModal, setShowRssTutorialModal] = useState(false)
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settingsData) {
@@ -1188,17 +1188,28 @@ export default function DashboardPage() {
 
             {/* RSS Feeds Settings Card */}
             <div className="table-card" style={{ padding: 24, marginBottom: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Rss size={18} color="#f59e0b" />
-                แหล่งที่มาของข่าว (RSS Sources)
-              </h3>
-              <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
-                <p style={{ margin: '0 0 6px 0' }}>ตั้งค่า RSS Feed สำหรับให้บอทดึงข่าวอัตโนมัติ</p>
-                <div style={{ padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6, border: '1px dashed var(--border-main)', display: 'inline-block' }}>
-                  <strong>วิธีหาลิงก์ RSS:</strong> เว็บข่าวส่วนใหญ่จะมี RSS ให้บริการ ลองค้นหาคำว่า "RSS" บนหน้าเว็บนั้นๆ 
-                  หรือลองเติม <code>/rss</code> หรือ <code>/feed</code> ต่อท้าย URL เว็บไซต์ (เช่น <code>https://www.example.com/feed</code>)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Rss size={18} color="#f59e0b" />
+                    แหล่งที่มาของข่าว (RSS Sources)
+                  </h3>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                    ตั้งค่า RSS Feed สำหรับให้บอทดึงข่าวอัตโนมัติ
+                  </div>
                 </div>
+                <button 
+                  onClick={() => setShowRssTutorialModal(true)}
+                  style={{
+                    background: 'var(--bg-hover)', color: '#f59e0b', border: '1px solid #f59e0b33',
+                    padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  วิธีหาลิงก์ RSS
+                </button>
               </div>
+
+              <div style={{ height: 12 }} />
 
               {/* Add new feed row */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -1514,6 +1525,68 @@ export default function DashboardPage() {
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-main)', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowTutorialModal(false)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
+                เข้าใจแล้ว ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RSS Tutorial Modal */}
+      {showRssTutorialModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 500, maxHeight: '90vh',
+            overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid var(--border-main)'
+          }}>
+            <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>วิธีหาลิงก์ RSS ของเว็บข่าว</h3>
+              <button onClick={() => setShowRssTutorialModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 24, fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6 }}>
+              <p style={{ marginBottom: 16 }}>
+                RSS Feed คือช่องทางสำหรับดึงเนื้อหาจากเว็บไซต์มาใช้งานแบบอัตโนมัติ 
+                คุณสามารถนำ URL ของ RSS จากเว็บข่าวกีฬาที่คุณชอบมาใส่ในบอทนี้ได้
+              </p>
+              
+              <h4 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8, color: 'var(--text-strong)' }}>เคล็ดลับการหาลิงก์ RSS:</h4>
+              <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <li>
+                  <strong>สังเกตสัญลักษณ์ RSS</strong>
+                  <div>มองหาไอคอน <Rss size={14} style={{display: 'inline', color: '#f59e0b'}} /> หรือคำว่า "RSS / Feed" ที่ด้านล่างสุดของเว็บข่าว (Footer)</div>
+                </li>
+                <li>
+                  <strong>ลองเติม Path ต่อท้าย URL</strong>
+                  <div>ลองพิมพ์คำพวกนี้ต่อท้ายชื่อเว็บข่าวที่คุณชอบ:
+                    <ul style={{ paddingLeft: 20, marginTop: 4, color: 'var(--text-muted)' }}>
+                      <li><code>/rss</code> (เช่น <code>example.com/rss</code>)</li>
+                      <li><code>/feed</code> (เช่น <code>example.com/feed</code>)</li>
+                      <li><code>/rss.xml</code> (เช่น <code>example.com/rss.xml</code>)</li>
+                    </ul>
+                  </div>
+                </li>
+                <li>
+                  <strong>ค้นหาผ่าน Google</strong>
+                  <div>ลองพิมพ์ค้นหาใน Google ว่า <code>"ชื่อเว็บข่าว RSS Feed"</code> เช่น <code>"Sky Sports Liverpool RSS"</code></div>
+                </li>
+              </ol>
+
+              <div style={{ marginTop: 24, padding: 12, background: 'rgba(245, 158, 11, 0.1)', borderRadius: 8, border: '1px dashed #f59e0b' }}>
+                <strong style={{ color: '#d97706', display: 'block', marginBottom: 4 }}>ตัวอย่าง RSS ที่ใช้ได้เลย:</strong>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-muted)' }}>
+                  <li>BBC Sport (LFC): <br/><code style={{fontSize: 11}}>https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml</code></li>
+                  <li>Liverpool Echo: <br/><code style={{fontSize: 11}}>https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss</code></li>
+                  <li>LFC Official: <br/><code style={{fontSize: 11}}>https://www.liverpoolfc.com/news/rss.xml</code></li>
+                </ul>
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-main)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowRssTutorialModal(false)} style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
                 เข้าใจแล้ว ปิดหน้าต่าง
               </button>
             </div>
