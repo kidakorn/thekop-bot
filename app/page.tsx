@@ -1581,7 +1581,7 @@ export default function DashboardPage() {
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-muted)' }}>
                   <li>BBC Sport (LFC): <br/><code style={{fontSize: 11}}>https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml</code></li>
                   <li>Liverpool Echo: <br/><code style={{fontSize: 11}}>https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss</code></li>
-                  <li>LFC Official: <br/><code style={{fontSize: 11}}>https://www.liverpoolfc.com/news/rss.xml</code></li>
+                  <li>This Is Anfield: <br/><code style={{fontSize: 11}}>https://www.thisisanfield.com/feed/</code></li>
                 </ul>
               </div>
             </div>

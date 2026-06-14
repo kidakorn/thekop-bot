@@ -16,7 +16,7 @@ const prisma = new PrismaClient({ adapter })
 const DEFAULT_RSS_FEEDS = [
 	'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml',
 	'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss',
-	'https://www.liverpoolfc.com/news/rss.xml',
+	'https://www.thisisanfield.com/feed/',
 ]
 
 // Parse RSS XML to array

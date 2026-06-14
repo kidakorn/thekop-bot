@@ -30,7 +30,7 @@ export async function GET() {
 			rss_feeds: rssFeeds.length > 0 ? rssFeeds : [
 				{ name: 'BBC Sport — Liverpool', url: 'https://www.bbc.co.uk/sport/football/teams/liverpool/rss.xml', isActive: true },
 				{ name: 'Liverpool Echo', url: 'https://www.liverpoolecho.co.uk/all-about/liverpool-fc?service=rss', isActive: true },
-				{ name: 'LFC Official (Scraped)', url: 'https://www.liverpoolfc.com/news/rss.xml', isActive: true },
+				{ name: 'This Is Anfield', url: 'https://www.thisisanfield.com/feed/', isActive: true },
 			],
 			disable_ai: pageSetting?.disableAi ?? true,
 		}, { status: 200 })
