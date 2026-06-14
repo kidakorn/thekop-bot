@@ -22,8 +22,13 @@ async function runBot(): Promise<void> {
 		const latest = news[0]
 
 		// Save to DB with PENDING status before posting
+		// Note: scheduler uses system owner - will be migrated in Phase 4
+		const systemUser = await prisma.user.findFirst()
+		if (!systemUser) throw new Error('No user found in DB. Please create an account first.')
+
 		const post = await prisma.post.create({
 			data: {
+				userId: systemUser.id,
 				title: latest.title,
 				content: latest.description,
 				link: latest.link,
