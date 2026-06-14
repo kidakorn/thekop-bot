@@ -21,8 +21,27 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    authorized({ auth }) {
-      return !!auth?.user
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user
+      const isApiAuthRoute = nextUrl.pathname.startsWith('/api/auth')
+      const isApiRegisterRoute = nextUrl.pathname.startsWith('/api/register')
+      const isAuthRoute = nextUrl.pathname === '/login'
+
+      // Allow API routes to function normally
+      if (isApiAuthRoute || isApiRegisterRoute) {
+        return true
+      }
+
+      // If user is logged in and trying to access login page, redirect to home
+      if (isAuthRoute) {
+        if (isLoggedIn) {
+          return Response.redirect(new URL('/', nextUrl))
+        }
+        return true
+      }
+
+      // Require authentication for all other routes
+      return isLoggedIn
     },
   },
   pages: {
