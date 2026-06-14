@@ -76,12 +76,16 @@ function parseRSS(xmlText) {
 			const cleanDescription = description.replace(/<[^>]+>/g, '').trim()
 			const decodedDescription = cheerio.load(cleanDescription).text()
 
+			const imageUrlMatch = itemXml.match(/<media:content.*?url=["'](.*?)["']/) || itemXml.match(/<enclosure.*?url=["'](.*?)["']/) || []
+			const imageUrl = imageUrlMatch[1] || null
+
 			items.push({
 				title: decodedTitle,
 				link: link.trim(),
 				description: decodedDescription.slice(0, 500),
 				pubDate: pubDate.trim(),
-				pubDateMs: isNaN(pubDateMs) ? 0 : pubDateMs
+				pubDateMs: isNaN(pubDateMs) ? 0 : pubDateMs,
+				image: imageUrl
 			})
 		}
 	}
@@ -123,12 +127,16 @@ async function fetchNews(activeFeeds) {
 // Extract main image from article HTML
 async function getArticleImage(url) {
 	try {
-		const res = await axios.get(url, { timeout: 10000 })
+		const res = await axios.get(url, { 
+			timeout: 10000,
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+		})
 		const $ = cheerio.load(res.data)
 		let imgUrl = $('meta[property="og:image"]').attr('content')
 		if (!imgUrl) imgUrl = $('meta[name="twitter:image"]').attr('content')
 		return imgUrl
 	} catch (err) {
+		console.warn(`⚠️ Failed to scrape image from HTML for ${url}:`, err.message)
 		return null
 	}
 }
@@ -261,7 +269,7 @@ async function runBotForUser(pageSetting, activeFeeds) {
 		})
 
 		let imageBase64 = null
-		const articleImageUrl = await getArticleImage(latest.link)
+		const articleImageUrl = latest.image || await getArticleImage(latest.link)
 		if (articleImageUrl) {
 			try {
 				const imgRes = await axios.get(articleImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
