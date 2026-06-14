@@ -75,12 +75,15 @@ async function fetchNews(activeFeeds) {
 
 	const now = Date.now()
 	const twentyFourHours = 24 * 60 * 60 * 1000
-	return firstTeamNews.filter(item => {
+	const filteredNews = firstTeamNews.filter(item => {
 		if (item.pubDateMs) {
 			return (now - item.pubDateMs) <= twentyFourHours
 		}
 		return true
 	})
+
+	// Sort by newest first (highest timestamp to lowest)
+	return filteredNews.sort((a, b) => b.pubDateMs - a.pubDateMs)
 }
 
 // Extract main image from article HTML
