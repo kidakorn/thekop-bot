@@ -9,7 +9,10 @@ import { authConfig } from '@/lib/auth.config'
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  session: { 
+    strategy: 'jwt',
+    maxAge: 2 * 60 * 60 // 2 hours
+  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,

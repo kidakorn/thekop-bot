@@ -56,7 +56,10 @@ type ActivePage = 'dashboard' | 'feeds' | 'analytics' | 'settings'
 
 const POSTS_PER_PAGE = 10
 
+import { useSession, signOut } from 'next-auth/react'
+
 export default function DashboardPage() {
+  const { data: session } = useSession()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -493,10 +496,44 @@ export default function DashboardPage() {
               <span style={{ width: 6, height: 6, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
               Live
             </div>
-            <button id="refresh-btn" className="btn-refresh" onClick={handleRefresh}>
+            <button id="refresh-btn" className="btn-refresh" onClick={handleRefresh} style={{ marginRight: 12 }}>
               <RefreshCw size={13} />
               Refresh
             </button>
+
+            {/* Profile & Logout */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 12, borderLeft: '1px solid var(--border-light)' }}>
+              {session?.user?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={session.user.image} alt="Profile" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14 }}>
+                  {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>{session?.user?.name || 'User'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{session?.user?.email}</span>
+                </div>
+              )}
+              <button 
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                style={{ 
+                  background: 'none', border: 'none', padding: 6, cursor: 'pointer', color: 'var(--text-muted)',
+                  marginLeft: 4, borderRadius: 6, transition: 'background 0.2s'
+                }}
+                title="Logout"
+                onMouseOver={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseOut={e => e.currentTarget.style.background = 'none'}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
