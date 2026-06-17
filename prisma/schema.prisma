@@ -23,11 +23,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  posts         Post[]
-  settings      PageSetting?
-  rssSources    RssSource[]
+  accounts        Account[]
+  sessions        Session[]
+  posts           Post[]
+  settings        PageSetting?
+  rssSources      RssSource[]
+  affiliateClicks AffiliateClick[]
 
   @@map("users")
 }
@@ -103,17 +104,25 @@ enum PostStatus {
 
 // Facebook Page Settings (1 User = 1 Page)
 model PageSetting {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  pageId          String   // Facebook Page ID
-  pageAccessToken String   // Facebook Page Access Token (long-lived)
-  newsSchedule    String?  // JSON string of times e.g. '["08:00","12:00"]'
-  disableAi       Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  pageId             String   // Facebook Page ID
+  pageAccessToken    String   // Facebook Page Access Token (long-lived)
+  newsSchedule       String?  // JSON string of times e.g. '["08:00","12:00"]'
+  disableAi          Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  
+  // Affiliate Settings
+  affiliateEnabled   Boolean  @default(false)
+  affiliateLinks     String?  @db.Text // JSON: [{id, label, url, platform}]
+  affiliateMode      String   @default("random") // "random" | "rotate" | "fixed"
+  affiliateTag       String?  // Custom CTA text
+  lastAffiliateIndex Int      @default(0) // Track rotation index
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("page_settings")
 }
@@ -130,6 +139,22 @@ model RssSource {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("rss_sources")
+}
+
+// Affiliate Click Tracking
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  userId      String   // Which user's affiliate link was clicked
+  postId      String?  // Associated FB post ID if applicable
+  linkId      String?  // Internal ID of the affiliate link from the JSON array
+  platform    String   @default("shopee")
+  ipAddress   String?  // For basic unique click tracking (hash it if privacy concerns)
+  userAgent   String?
+  clickedAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("affiliate_clicks")
 }
 
 // Global key-value settings (system-wide, not per-user)

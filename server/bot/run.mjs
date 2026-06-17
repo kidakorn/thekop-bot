@@ -142,7 +142,7 @@ async function getArticleImage(url) {
 }
 
 // Post to Facebook Page
-async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting) {
+async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, dbPostId) {
 	const { pageId } = pageSetting
 	const pageAccessToken = decryptToken(pageSetting.pageAccessToken)
 
@@ -169,6 +169,48 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting) {
 			console.log(`💬 Added link to the first comment of post ${fbPostId}`)
 		} catch (commentErr) {
 			console.error(`⚠️ Failed to add comment to post ${fbPostId}:`, commentErr.response?.data || commentErr.message)
+		}
+
+		// 3. Post Affiliate Comment
+		if (pageSetting.affiliateEnabled && pageSetting.affiliateLinks) {
+			try {
+				const links = JSON.parse(pageSetting.affiliateLinks)
+				if (links.length > 0) {
+					let selectedLink = null
+					let newIndex = pageSetting.lastAffiliateIndex || 0
+
+					if (pageSetting.affiliateMode === 'fixed') {
+						selectedLink = links[0]
+					} else if (pageSetting.affiliateMode === 'random') {
+						selectedLink = links[Math.floor(Math.random() * links.length)]
+					} else { // rotate
+						if (newIndex >= links.length) newIndex = 0
+						selectedLink = links[newIndex]
+						newIndex++
+						
+						// Update db for next rotation
+						await prisma.pageSetting.update({
+							where: { userId: pageSetting.userId },
+							data: { lastAffiliateIndex: newIndex }
+						})
+					}
+
+					if (selectedLink) {
+						const ctaText = pageSetting.affiliateTag || 'ช้อปสินค้า Liverpool แท้'
+						
+						// Use raw Shopee link so Facebook shows Shopee preview
+						const affiliateComment = `${ctaText}\n${selectedLink.url}`
+						
+						await axios.post(
+							`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
+							{ message: affiliateComment, access_token: pageAccessToken }
+						)
+						console.log(`🛍️ Added Affiliate comment to post ${fbPostId}`)
+					}
+				}
+			} catch (affiliateErr) {
+				console.error(`⚠️ Failed to add affiliate comment:`, affiliateErr.response?.data || affiliateErr.message)
+			}
 		}
 
 		return fbPostId
@@ -264,7 +306,7 @@ async function runBotForUser(pageSetting, activeFeeds) {
 		const articleImageUrl = latest.image || await getArticleImage(latest.link)
 
 		console.log(`📢 Posting for User [${pageSetting.userId}]...`)
-		const fbPostId = await postToFacebook(thaiSummary, latest.link, articleImageUrl, latest.title, pageSetting)
+		const fbPostId = await postToFacebook(thaiSummary, latest.link, articleImageUrl, latest.title, pageSetting, post.id)
 
 		// Update status to POSTED
 		await prisma.post.update({
