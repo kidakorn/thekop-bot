@@ -120,13 +120,14 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ pageId?: string; pageAccessToken?: string; news_schedule: string[]; rss_feeds?: { name: string, url: string }[], disable_ai?: boolean }>('/api/settings', fetcher)
+    useSWR<{ pageId?: string; pageAccessToken?: string; news_schedule: string[]; rss_feeds?: { name: string, url: string }[], disable_ai?: boolean, postAsPhoto?: boolean }>('/api/settings', fetcher)
 
   const [editedPageId, setEditedPageId] = useState('')
   const [editedPageAccessToken, setEditedPageAccessToken] = useState('')
   const [editedNews, setEditedNews] = useState<string[]>([])
   const [editedFeeds, setEditedFeeds] = useState<{ name: string, url: string }[]>([])
   const [editedDisableAi, setEditedDisableAi] = useState<boolean>(false)
+  const [editedPostAsPhoto, setEditedPostAsPhoto] = useState<boolean>(false)
   const [newNewsTime, setNewNewsTime] = useState('12:00')
   const [newFeedName, setNewFeedName] = useState('')
   const [newFeedUrl, setNewFeedUrl] = useState('')
@@ -144,6 +145,9 @@ export default function DashboardPage() {
       }
       if (typeof settingsData.disable_ai === 'boolean') {
         setEditedDisableAi(settingsData.disable_ai)
+      }
+      if (typeof settingsData.postAsPhoto === 'boolean') {
+        setEditedPostAsPhoto(settingsData.postAsPhoto)
       }
     }
   }, [settingsData])
@@ -186,7 +190,8 @@ export default function DashboardPage() {
           pageAccessToken: editedPageAccessToken,
           news_schedule: editedNews,
           rss_feeds: editedFeeds,
-          disable_ai: editedDisableAi
+          disable_ai: editedDisableAi,
+          postAsPhoto: editedPostAsPhoto
         })
       })
 
@@ -1133,6 +1138,59 @@ export default function DashboardPage() {
                     <div style={{
                       width: 12, height: 12, borderRadius: '50%',
                       background: editedDisableAi ? '#ef4444' : '#fff'
+                    }} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="table-card" style={{ marginBottom: 20 }}>
+                <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div className="table-card-title">รูปแบบการโพสต์ภาพ (Post Type)</div>
+                    <div className="table-card-meta">สวิตช์ปิดคือแบบแชร์ลิงก์ (ปลอดภัยลิขสิทธิ์ 100%) สวิตช์เปิดคือแบบอัปโหลดรูป (คนเห็นเยอะกว่าแต่อาจเสี่ยงลิขสิทธิ์)</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newVal = !editedPostAsPhoto
+                      setEditedPostAsPhoto(newVal)
+                      try {
+                        await fetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            pageId: editedPageId,
+                            pageAccessToken: editedPageAccessToken,
+                            news_schedule: editedNews,
+                            rss_feeds: editedFeeds,
+                            disable_ai: editedDisableAi,
+                            postAsPhoto: newVal
+                          })
+                        })
+                        mutateSettings()
+                        showToast(newVal ? 'เปลี่ยนเป็นโพสต์แบบอัปโหลดรูปแล้ว' : 'เปลี่ยนเป็นโพสต์แบบแชร์ลิงก์แล้ว', 'success')
+                      } catch (e) {
+                        showToast('Failed to save post type setting', 'error')
+                      }
+                    }}
+                    style={{
+                      background: editedPostAsPhoto ? '#16a34a' : 'var(--bg-hover)',
+                      color: editedPostAsPhoto ? '#fff' : 'var(--text-main)',
+                      border: '1px solid var(--border-light)',
+                      padding: '8px 16px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8
+                    }}
+                  >
+                    {editedPostAsPhoto ? 'แบบอัปโหลดรูป' : 'แบบแชร์ลิงก์'}
+                    <div style={{
+                      width: 12, height: 12, borderRadius: '50%',
+                      background: editedPostAsPhoto ? '#fff' : '#ef4444'
                     }} />
                   </button>
                 </div>

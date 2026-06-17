@@ -152,13 +152,21 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 	const commentText = `อ่านรายละเอียดข่าวฉบับเต็มได้ที่นี่ 👇\n${link}`
 	let fbPostId = null
 
-	if (imageUrl) {
-		// 1. Post Photo
+	if (pageSetting.postAsPhoto && imageUrl) {
+		// 1. Post Photo (Higher reach, potential copyright risk)
 		const response = await axios.post(
 			`https://graph.facebook.com/v20.0/${pageId}/photos`,
 			{ url: imageUrl, message: fullCaption, access_token: pageAccessToken }
 		)
 		fbPostId = response.data.id
+	} else {
+		// 1. Post as Link Preview (100% Copyright Safe, Default)
+		const response = await axios.post(
+			`https://graph.facebook.com/v20.0/${pageId}/feed`,
+			{ message: fullCaption, link, access_token: pageAccessToken }
+		)
+		fbPostId = response.data.id
+	}
 
 		// 2. Post Comment with Link
 		try {
@@ -214,14 +222,6 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 		}
 
 		return fbPostId
-	} else {
-		// Fallback to Link Post if no image
-		const response = await axios.post(
-			`https://graph.facebook.com/v20.0/${pageId}/feed`,
-			{ message: fullCaption, link, access_token: pageAccessToken }
-		)
-		return response.data.id
-	}
 }
 
 // Core bot function for a specific user

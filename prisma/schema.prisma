@@ -110,6 +110,7 @@ model PageSetting {
   pageAccessToken    String   // Facebook Page Access Token (long-lived)
   newsSchedule       String?  // JSON string of times e.g. '["08:00","12:00"]'
   disableAi          Boolean  @default(false)
+  postAsPhoto        Boolean  @default(false) // If true, upload photo. If false (default), post link preview.
   isActive           Boolean  @default(true)
   
   // Affiliate Settings
