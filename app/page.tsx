@@ -75,6 +75,18 @@ export default function DashboardPage() {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
   const [logFilter, setLogFilter] = useState<'ALL' | 'ERROR' | 'SUCCESS'>('ALL')
   const [autoScrollLogs, setAutoScrollLogs] = useState(true)
+  const [clock, setClock] = useState('')
+
+  // Real-time clock
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date()
+      setClock(now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }))
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'light'
@@ -468,11 +480,41 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <div className="sidebar-footer">
-          <div className="sidebar-status-row">
+          <div className="sidebar-status-row" style={{ marginBottom: 10 }}>
             <div className="sidebar-status-dot" />
             <div className="sidebar-status-text">
               <strong>Bot Active</strong>
               <small>Runs {activeSchedules.length}× / day</small>
+            </div>
+          </div>
+          {/* User Avatar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 10px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            overflow: 'hidden', cursor: 'pointer', transition: 'background 0.2s'
+          }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.14)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+          >
+            {session?.user?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={session.user.image} alt="Profile" referrerPolicy="no-referrer"
+                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid rgba(255,255,255,0.3)' }} />
+            ) : (
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, fontSize: 14, border: '2px solid rgba(255,255,255,0.3)'
+              }}>
+                {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || 'U'}
+              </div>
+            )}
+            <div className="sidebar-status-text">
+              <strong style={{ fontSize: 12.5, letterSpacing: '-0.1px' }}>{session?.user?.name || 'User'}</strong>
+              <small style={{ fontSize: 10.5 }}>{session?.user?.email?.split('@')[0] || ''}</small>
             </div>
           </div>
         </div>
@@ -487,16 +529,51 @@ export default function DashboardPage() {
               <Menu size={17} />
             </button>
             <div>
-              <div className="topbar-title">
+              {/* Breadcrumb */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>
+                <span style={{ color: 'var(--text-muted-light)' }}>The Kop Bot</span>
+                <span style={{ color: 'var(--text-muted-light)' }}>/</span>
+                <span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>
+                  {activePage === 'dashboard' && 'Dashboard'}
+                  {activePage === 'feeds' && 'RSS Feeds'}
+                  {activePage === 'analytics' && 'Analytics'}
+                  {activePage === 'settings' && 'Settings'}
+                  {activePage === 'affiliate' && 'Affiliate'}
+                </span>
+              </div>
+              <div className="topbar-title" style={{ lineHeight: 1 }}>
                 {activePage === 'dashboard' && 'Overview Dashboard'}
                 {activePage === 'feeds' && 'RSS Feeds'}
                 {activePage === 'analytics' && 'Analytics'}
                 {activePage === 'settings' && 'Settings'}
+                {activePage === 'affiliate' && 'Affiliate Monetization'}
               </div>
-              <div className="topbar-subtitle">คอบอลเดอะค็อป — The Kop</div>
             </div>
           </div>
           <div className="topbar-right">
+            {/* Real-time Clock */}
+            {!isMobile && clock && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+                borderRadius: 8, background: 'var(--bg-hover)', border: '1px solid var(--border-light)',
+                fontSize: 13, fontWeight: 600, color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '0.5px'
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
+                {clock}
+              </div>
+            )}
+            {/* Today's post count */}
+            {!isMobile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+                borderRadius: 8, background: 'linear-gradient(135deg,#fef3c7,#fde68a)',
+                border: '1px solid #fcd34d', fontSize: 12, fontWeight: 700, color: '#92400e'
+              }}>
+                <TrendingUp size={13} />
+                {totalPostedToday} โพสต์วันนี้
+              </div>
+            )}
             <button onClick={toggleTheme} className="btn-refresh" style={{ padding: '8px', borderRadius: '50%' }} title="Toggle Theme">
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
@@ -587,54 +664,99 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <>
-                    <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                      <div className="stat-card-icon blue" style={{ background: 'rgba(59, 130, 246, 0.08)' }}><BarChart2 size={18} /></div>
+                    {/* Total Posts */}
+                    <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: 'linear-gradient(135deg,#3b82f6,#6366f1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(59,130,246,0.35)'
+                      }}>
+                        <BarChart2 size={20} color="#fff" />
+                      </div>
                       <div className="stat-card-content">
                         <div className="stat-card-label">Total Posts</div>
-                        <div className="stat-card-value">{stats?.total ?? 0}</div>
-                        <div className="stat-card-sub">All time records</div>
+                        <div className="stat-card-value" style={{ fontSize: 30 }}>{stats?.total ?? 0}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>All time records</span>
+                        </div>
                       </div>
-                      <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}>
+                      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}>
                           <path d="M 0 20 Q 15 5, 30 25 T 60 10 T 100 15" />
                         </svg>
                       </div>
                     </div>
-                    <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                      <div className="stat-card-icon green" style={{ background: 'rgba(16, 185, 129, 0.08)' }}><CheckCircle size={18} /></div>
+                    {/* Posted */}
+                    <div className="stat-card" style={{ borderLeft: '4px solid #10b981', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: 'linear-gradient(135deg,#10b981,#059669)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(16,185,129,0.35)'
+                      }}>
+                        <CheckCircle size={20} color="#fff" />
+                      </div>
                       <div className="stat-card-content">
                         <div className="stat-card-label">Posted</div>
-                        <div className="stat-card-value">{stats?.posted ?? 0}</div>
-                        <div className="stat-card-sub">{totalPostedToday} today</div>
+                        <div className="stat-card-value" style={{ fontSize: 30 }}>{stats?.posted ?? 0}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ fontSize: 11, background: '#dcfce7', color: '#15803d', padding: '1px 7px', borderRadius: 20, fontWeight: 700 }}>
+                            ▲ {totalPostedToday} today
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}>
+                      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}>
                           <path d="M 0 25 Q 15 5, 35 22 T 70 8 T 100 12" />
                         </svg>
                       </div>
                     </div>
-                    <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                      <div className="stat-card-icon amber" style={{ background: 'rgba(245, 158, 11, 0.08)' }}><Clock size={18} /></div>
+                    {/* Pending */}
+                    <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: 'linear-gradient(135deg,#f59e0b,#d97706)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(245,158,11,0.35)'
+                      }}>
+                        <Clock size={20} color="#fff" />
+                      </div>
                       <div className="stat-card-content">
                         <div className="stat-card-label">Pending</div>
-                        <div className="stat-card-value">{stats?.pending ?? 0}</div>
-                        <div className="stat-card-sub">Awaiting publish</div>
+                        <div className="stat-card-value" style={{ fontSize: 30 }}>{stats?.pending ?? 0}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Awaiting publish</span>
+                        </div>
                       </div>
-                      <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}>
+                      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}>
                           <path d="M 0 18 C 15 25, 30 10, 45 5 C 60 18, 80 25, 100 15" />
                         </svg>
                       </div>
                     </div>
-                    <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-                      <div className="stat-card-icon red" style={{ background: 'rgba(239, 68, 68, 0.08)' }}><XCircle size={18} /></div>
+                    {/* Failed */}
+                    <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(239,68,68,0.35)'
+                      }}>
+                        <XCircle size={20} color="#fff" />
+                      </div>
                       <div className="stat-card-content">
                         <div className="stat-card-label">Failed</div>
-                        <div className="stat-card-value">{stats?.failed ?? 0}</div>
-                        <div className="stat-card-sub">Need attention</div>
+                        <div className="stat-card-value" style={{ fontSize: 30 }}>{stats?.failed ?? 0}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          {(stats?.failed ?? 0) > 0
+                            ? <span style={{ fontSize: 11, background: '#fee2e2', color: '#b91c1c', padding: '1px 7px', borderRadius: 20, fontWeight: 700 }}>⚠ Need attention</span>
+                            : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>All clear ✓</span>
+                          }
+                        </div>
                       </div>
-                      <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}>
+                      <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                        <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}>
                           <path d="M 0 12 Q 20 28, 45 15 T 80 18 L 100 5" />
                         </svg>
                       </div>
@@ -747,7 +869,7 @@ export default function DashboardPage() {
                         <tr>
                           <th style={{ width: '50%' }}>Title</th>
                           <th>Status</th>
-                          <th className="col-fbid">FB Post ID</th>
+                          <th className="col-fbid">Source</th>
                           <th className="col-time">Time</th>
                           <th style={{ textAlign: 'center' }}>Action</th>
                         </tr>
@@ -756,21 +878,39 @@ export default function DashboardPage() {
                         {currentPosts.map(post => {
                           const cfg = statusConfig[post.status] ?? statusConfig.PENDING
                           const cleanTitle = stripHtml(post.title)
+                          const sourceDomain = post.link ? (() => { try { return new URL(post.link).hostname.replace('www.', '') } catch { return null } })() : null
+                          const isPending = post.status === 'PENDING'
                           return (
-                            <tr key={post.id} onClick={() => setSelectedPost(post)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9fafb'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                            <tr key={post.id}
+                              onClick={() => setSelectedPost(post)}
+                              style={{ cursor: 'pointer', transition: 'background 0.15s' }}
+                              onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                              onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+                            >
                               <td>
-                                <div className="post-title-cell" title={cleanTitle}>{cleanTitle}</div>
+                                <div className="post-title-cell" title={cleanTitle} style={{ fontWeight: 500 }}>{cleanTitle}</div>
                               </td>
                               <td>
                                 <span className={`badge-status ${cfg.cls}`}>
-                                  <span style={{ width: 5, height: 5, background: cfg.dot, borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />
+                                  <span style={{
+                                    width: 6, height: 6, background: cfg.dot, borderRadius: '50%',
+                                    display: 'inline-block', flexShrink: 0,
+                                    animation: isPending ? 'pulse-dot 1.5s infinite' : 'none'
+                                  }} />
                                   {cfg.label}
                                 </span>
                               </td>
                               <td className="col-fbid">
-                                <span style={{ fontSize: 11.5, color: 'var(--text-muted-light)' }}>
-                                  {post.fbPostId ?? '—'}
-                                </span>
+                                {sourceDomain ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={`https://www.google.com/s2/favicons?domain=${sourceDomain}&sz=16`} alt=""
+                                      width={14} height={14} style={{ borderRadius: 3, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 11.5, color: 'var(--text-muted-light)' }}>{sourceDomain}</span>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: 11.5, color: 'var(--text-muted-light)' }}>—</span>
+                                )}
                               </td>
                               <td className="col-time" style={{ color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                                 {formatDate(post.postedAt ?? post.createdAt)}
@@ -840,13 +980,29 @@ export default function DashboardPage() {
               transition={{ duration: 0.2 }}
               className="page-body"
             >
+              {/* Page Header */}
+              <div className="page-header">
+                <div className="page-header-left">
+                  <div className="page-header-icon" style={{ background: 'linear-gradient(135deg,#f59e0b,#ef4444)', boxShadow: '0 4px 14px rgba(245,158,11,0.35)' }}>
+                    <Rss size={22} color="#fff" />
+                  </div>
+                  <div>
+                    <div className="page-header-title">RSS Feeds</div>
+                    <div className="page-header-subtitle">แหล่งข่าวที่บอทใช้ดึงข้อมูลอัตโนมัติ</div>
+                  </div>
+                </div>
+              </div>
+
               <div className="table-card" style={{ marginBottom: 20 }}>
                 <div className="table-card-header">
                   <div>
                     <div className="table-card-title">Active RSS Sources</div>
                     <div className="table-card-meta">{RSS_FEEDS.length} feeds configured</div>
                   </div>
-                  <Rss size={15} color="var(--text-muted)" />
+                  <span className="badge-status badge-posted">
+                    <span style={{ width: 5, height: 5, background: '#16a34a', borderRadius: '50%', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
+                    Live Pulling
+                  </span>
                 </div>
                 <div style={{ padding: '8px 0' }}>
                   {RSS_FEEDS.map((feed, i) => (
@@ -939,65 +1095,86 @@ export default function DashboardPage() {
               transition={{ duration: 0.2 }}
               className="page-body"
             >
+              {/* Page Header */}
+              <div className="page-header">
+                <div className="page-header-left">
+                  <div className="page-header-icon" style={{ background: 'linear-gradient(135deg,#3b82f6,#6366f1)', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}>
+                    <BarChart2 size={22} color="#fff" />
+                  </div>
+                  <div>
+                    <div className="page-header-title">Analytics</div>
+                    <div className="page-header-subtitle">ภาพรวมสถิติการโพสต์ทั้งหมด</div>
+                  </div>
+                </div>
+              </div>
+
               <div className="stats-grid" style={{ marginBottom: 20 }}>
+                {/* Success Rate */}
                 <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                  <div className="stat-card-icon green" style={{ background: 'rgba(16, 185, 129, 0.08)' }}><CheckCircle size={18} /></div>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(16,185,129,0.35)' }}>
+                    <CheckCircle size={20} color="#fff" />
+                  </div>
                   <div className="stat-card-content">
                     <div className="stat-card-label">Success Rate</div>
-                    <div className="stat-card-value">
-                      {stats && stats.total > 0
-                        ? `${Math.round((stats.posted / stats.total) * 100)}%`
-                        : '—'}
+                    <div className="stat-card-value" style={{ fontSize: 30 }}>
+                      {stats && stats.total > 0 ? `${Math.round((stats.posted / stats.total) * 100)}%` : '—'}
                     </div>
-                    <div className="stat-card-sub">Posted / Total</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, background: '#dcfce7', color: '#15803d', padding: '1px 7px', borderRadius: 20, fontWeight: 700 }}>Posted / Total</span>
+                    </div>
                   </div>
-                  <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}>
-                      <path d="M 0 25 Q 15 5, 35 22 T 70 8 T 100 12" />
-                    </svg>
+                  <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#10b981', fill: 'none', strokeLinecap: 'round' }}><path d="M 0 25 Q 15 5, 35 22 T 70 8 T 100 12" /></svg>
                   </div>
                 </div>
+                {/* Posted Today */}
                 <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                  <div className="stat-card-icon blue" style={{ background: 'rgba(59, 130, 246, 0.08)' }}><BarChart2 size={18} /></div>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#3b82f6,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(59,130,246,0.35)' }}>
+                    <BarChart2 size={20} color="#fff" />
+                  </div>
                   <div className="stat-card-content">
                     <div className="stat-card-label">Posted Today</div>
-                    <div className="stat-card-value">{totalPostedToday}</div>
-                    <div className="stat-card-sub">of {activeSchedules.length} scheduled</div>
+                    <div className="stat-card-value" style={{ fontSize: 30 }}>{totalPostedToday}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>of {activeSchedules.length} scheduled</span>
+                    </div>
                   </div>
-                  <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}>
-                      <path d="M 0 20 Q 15 5, 30 25 T 60 10 T 90 20 L 100 15" />
-                    </svg>
+                  <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#3b82f6', fill: 'none', strokeLinecap: 'round' }}><path d="M 0 20 Q 15 5, 30 25 T 60 10 T 90 20 L 100 15" /></svg>
                   </div>
                 </div>
+                {/* Pending */}
                 <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                  <div className="stat-card-icon amber" style={{ background: 'rgba(245, 158, 11, 0.08)' }}><Clock size={18} /></div>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(245,158,11,0.35)' }}>
+                    <Clock size={20} color="#fff" />
+                  </div>
                   <div className="stat-card-content">
                     <div className="stat-card-label">Pending Queue</div>
-                    <div className="stat-card-value">{stats?.pending ?? 0}</div>
-                    <div className="stat-card-sub">Awaiting publish</div>
+                    <div className="stat-card-value" style={{ fontSize: 30 }}>{stats?.pending ?? 0}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Awaiting publish</span>
+                    </div>
                   </div>
-                  <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}>
-                      <path d="M 0 18 C 15 25, 30 10, 45 5 C 60 18, 80 25, 100 15" />
-                    </svg>
+                  <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#f59e0b', fill: 'none', strokeLinecap: 'round' }}><path d="M 0 18 C 15 25, 30 10, 45 5 C 60 18, 80 25, 100 15" /></svg>
                   </div>
                 </div>
+                {/* Fail Rate */}
                 <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-                  <div className="stat-card-icon red" style={{ background: 'rgba(239, 68, 68, 0.08)' }}><XCircle size={18} /></div>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(239,68,68,0.35)' }}>
+                    <XCircle size={20} color="#fff" />
+                  </div>
                   <div className="stat-card-content">
                     <div className="stat-card-label">Fail Rate</div>
-                    <div className="stat-card-value">
-                      {stats && stats.total > 0
-                        ? `${Math.round(((stats.failed ?? 0) / stats.total) * 100)}%`
-                        : '—'}
+                    <div className="stat-card-value" style={{ fontSize: 30 }}>
+                      {stats && stats.total > 0 ? `${Math.round(((stats.failed ?? 0) / stats.total) * 100)}%` : '—'}
                     </div>
-                    <div className="stat-card-sub">Failed / Total</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Failed / Total</span>
+                    </div>
                   </div>
-                  <div style={{ marginLeft: 'auto', alignSelf: 'center', opacity: 0.6, width: 48 }}>
-                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 20, strokeWidth: 2, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}>
-                      <path d="M 0 12 Q 20 28, 45 15 T 80 18 L 100 5" />
-                    </svg>
+                  <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', opacity: 0.5, width: 52 }}>
+                    <svg viewBox="0 0 100 30" style={{ width: '100%', height: 24, strokeWidth: 2.5, stroke: '#ef4444', fill: 'none', strokeLinecap: 'round' }}><path d="M 0 12 Q 20 28, 45 15 T 80 18 L 100 5" /></svg>
                   </div>
                 </div>
               </div>
@@ -1093,106 +1270,86 @@ export default function DashboardPage() {
               transition={{ duration: 0.2 }}
               className="page-body"
             >
-              <div className="table-card" style={{ marginBottom: 20 }}>
-                <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div className="table-card-title">ระบบแปลภาษาไทย (Google Translate)</div>
-                    <div className="table-card-meta">เปิดใช้งานเพื่อให้บอทแปลข่าวเป็นภาษาไทยอัตโนมัติ (ฟรี 100% ไม่ใช้ API Key)</div>
+              {/* Page Header */}
+              <div className="page-header">
+                <div className="page-header-left">
+                  <div className="page-header-icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#C8102E)', boxShadow: '0 4px 14px rgba(139,92,246,0.35)' }}>
+                    <Settings size={22} color="#fff" />
                   </div>
-                  <button
-                    onClick={async () => {
-                      const newVal = !editedDisableAi
-                      setEditedDisableAi(newVal)
-                      try {
-                        await fetch('/api/settings', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            news_schedule: editedNews,
-                            rss_feeds: editedFeeds,
-                            disable_ai: newVal
-                          })
-                        })
-                        mutateSettings()
-                        showToast(newVal ? 'ปิดการแปลภาษาไทย (โพสต์อังกฤษล้วน)' : 'เปิดระบบแปลภาษาไทยแล้ว', 'success')
-                      } catch (e) {
-                        showToast('Failed to save translation setting', 'error')
-                      }
-                    }}
-                    style={{
-                      background: editedDisableAi ? 'var(--bg-hover)' : '#16a34a',
-                      color: editedDisableAi ? 'var(--text-main)' : '#fff',
-                      border: '1px solid var(--border-light)',
-                      padding: '8px 16px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13,
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8
-                    }}
-                  >
-                    {editedDisableAi ? 'ปิดการแปลภาษา' : 'เปิดแปลภาษา'}
-                    <div style={{
-                      width: 12, height: 12, borderRadius: '50%',
-                      background: editedDisableAi ? '#ef4444' : '#fff'
-                    }} />
-                  </button>
+                  <div>
+                    <div className="page-header-title">Settings</div>
+                    <div className="page-header-subtitle">ตั้งค่าการทำงานของบอทและการเชื่อมต่อ Facebook</div>
+                  </div>
                 </div>
               </div>
 
+              {/* Bot Behaviour Toggles — merged into one card */}
               <div className="table-card" style={{ marginBottom: 20 }}>
-                <div className="table-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div className="table-card-title">รูปแบบการโพสต์ภาพ (Post Type)</div>
-                    <div className="table-card-meta">สวิตช์ปิดคือแบบแชร์ลิงก์ (ปลอดภัยลิขสิทธิ์ 100%) สวิตช์เปิดคือแบบอัปโหลดรูป (คนเห็นเยอะกว่าแต่อาจเสี่ยงลิขสิทธิ์)</div>
+                <div className="table-card-header">
+                  <div className="table-card-title">Bot Behaviour</div>
+                  <div className="table-card-meta">ตั้งค่าพฤติกรรมของบอทในการโพสต์</div>
+                </div>
+
+                {/* Translation Toggle */}
+                <div className="ios-toggle-wrap">
+                  <div className="ios-toggle-info">
+                    <div className="ios-toggle-label">
+                      <span style={{ fontSize: 16 }}>🌐</span>
+                      แปลข่าวเป็นภาษาไทย
+                    </div>
+                    <div className="ios-toggle-desc">เปิด = บอทแปลหัวข้อข่าวภาษาไทยอัตโนมัติ (ใช้ Google Translate ฟรี)</div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      const newVal = !editedPostAsPhoto
-                      setEditedPostAsPhoto(newVal)
-                      try {
-                        await fetch('/api/settings', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            pageId: editedPageId,
-                            pageAccessToken: editedPageAccessToken,
-                            news_schedule: editedNews,
-                            rss_feeds: editedFeeds,
-                            disable_ai: editedDisableAi,
-                            postAsPhoto: newVal
+                  <label className="ios-toggle">
+                    <input
+                      type="checkbox"
+                      checked={!editedDisableAi}
+                      onChange={async () => {
+                        const newVal = !editedDisableAi
+                        setEditedDisableAi(newVal)
+                        try {
+                          await fetch('/api/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: newVal, postAsPhoto: editedPostAsPhoto })
                           })
-                        })
-                        mutateSettings()
-                        showToast(newVal ? 'เปลี่ยนเป็นโพสต์แบบอัปโหลดรูปแล้ว' : 'เปลี่ยนเป็นโพสต์แบบแชร์ลิงก์แล้ว', 'success')
-                      } catch (e) {
-                        showToast('Failed to save post type setting', 'error')
-                      }
-                    }}
-                    style={{
-                      background: editedPostAsPhoto ? '#16a34a' : 'var(--bg-hover)',
-                      color: editedPostAsPhoto ? '#fff' : 'var(--text-main)',
-                      border: '1px solid var(--border-light)',
-                      padding: '8px 16px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13,
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8
-                    }}
-                  >
-                    {editedPostAsPhoto ? 'แบบอัปโหลดรูป' : 'แบบแชร์ลิงก์'}
-                    <div style={{
-                      width: 12, height: 12, borderRadius: '50%',
-                      background: editedPostAsPhoto ? '#fff' : '#ef4444'
-                    }} />
-                  </button>
+                          mutateSettings()
+                          showToast(newVal ? 'ปิดการแปลภาษาไทยแล้ว' : 'เปิดระบบแปลภาษาไทยแล้ว', 'success')
+                        } catch { showToast('Failed to save', 'error') }
+                      }}
+                    />
+                    <span className="ios-toggle-slider" />
+                  </label>
+                </div>
+
+                {/* Post Type Toggle */}
+                <div className="ios-toggle-wrap">
+                  <div className="ios-toggle-info">
+                    <div className="ios-toggle-label">
+                      <span style={{ fontSize: 16 }}>🖼️</span>
+                      โพสต์แบบอัปโหลดรูป
+                    </div>
+                    <div className="ios-toggle-desc">ปิด = แชร์ลิงก์ (ปลอดภัยลิขสิทธิ์ 100%) · เปิด = อัปโหลดรูปโดยตรง (Reach สูงกว่า)</div>
+                  </div>
+                  <label className="ios-toggle">
+                    <input
+                      type="checkbox"
+                      checked={editedPostAsPhoto}
+                      onChange={async () => {
+                        const newVal = !editedPostAsPhoto
+                        setEditedPostAsPhoto(newVal)
+                        try {
+                          await fetch('/api/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pageId: editedPageId, pageAccessToken: editedPageAccessToken, news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: editedDisableAi, postAsPhoto: newVal })
+                          })
+                          mutateSettings()
+                          showToast(newVal ? 'เปลี่ยนเป็นโพสต์แบบอัปโหลดรูปแล้ว' : 'เปลี่ยนเป็นโพสต์แบบแชร์ลิงก์แล้ว', 'success')
+                        } catch { showToast('Failed to save', 'error') }
+                      }}
+                    />
+                    <span className="ios-toggle-slider" />
+                  </label>
                 </div>
               </div>
 
