@@ -60,7 +60,9 @@ const POSTS_PER_PAGE = 10
 import { useSession, signOut } from 'next-auth/react'
 
 export default function DashboardPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession({
+    required: true,
+  })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
