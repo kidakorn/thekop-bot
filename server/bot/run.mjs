@@ -7,6 +7,12 @@ import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { translate } from 'google-translate-api-x'
 import crypto from 'crypto'
+import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+import path from 'path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const LOGO_PATH = path.join(__dirname, 'assets', 'LOGO.png')
 
 const ALGORITHM = 'aes-256-gcm'
 
@@ -141,6 +147,78 @@ async function getArticleImage(url) {
 	}
 }
 
+// ─── Image Processing Pipeline ──────────────────────────────────────────────
+// สร้างรูป 1080×1080 จาก: รูปข่าว + gradient overlay + กรอบ + โลโก้
+async function processImage(imageUrl, headline = '') {
+	const SIZE = 1080
+	const BORDER = 12
+
+	try {
+		// 1. Download source image (with browser UA to avoid 403)
+		const imgRes = await axios.get(imageUrl, {
+			responseType: 'arraybuffer',
+			timeout: 12000,
+			headers: {
+				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+			}
+		})
+		const inputBuf = Buffer.from(imgRes.data)
+
+		// 2. Resize to 1080×1080 (cover crop centre)
+		const base = await sharp(inputBuf)
+			.resize(SIZE, SIZE, { fit: 'cover', position: 'centre' })
+			.toBuffer()
+
+		// 3. Gradient overlay — เข้มขึ้นตั้งแต่ 50% ถึงล่างสุด (สำหรับ text readability)
+		const gradientSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+			<defs>
+				<linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%"  stop-color="#000" stop-opacity="0.05"/>
+					<stop offset="50%" stop-color="#000" stop-opacity="0.30"/>
+					<stop offset="100%" stop-color="#000" stop-opacity="0.72"/>
+				</linearGradient>
+			</defs>
+			<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
+		</svg>`
+
+		// 4. Border — กรอบแดง LFC รอบ 4 ด้าน
+		const borderSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+			<rect x="${BORDER/2}" y="${BORDER/2}"
+				width="${SIZE - BORDER}" height="${SIZE - BORDER}"
+				fill="none" stroke="#C8102E" stroke-width="${BORDER}" opacity="0.92"/>
+		</svg>`
+
+		// 5. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
+		const logoBuf = await sharp(LOGO_PATH)
+			.resize(180, 180, { fit: 'inside' })
+			.toBuffer()
+		const logoMeta = await sharp(logoBuf).metadata()
+		const logoW = logoMeta.width ?? 180
+		const logoH = logoMeta.height ?? 180
+
+		// 6. Composite ทุก layer
+		const result = await sharp(base)
+			.composite([
+				{ input: Buffer.from(gradientSvg), top: 0, left: 0 },
+				{ input: Buffer.from(borderSvg), top: 0, left: 0 },
+				{
+					input: logoBuf,
+					top: SIZE - logoH - 28 - BORDER,
+					left: SIZE - logoW - 28 - BORDER,
+				},
+			])
+			.jpeg({ quality: 90 })
+			.toBuffer()
+
+		console.log(`🖼️ processImage: success (${(result.length / 1024).toFixed(0)} KB)`)
+		return result
+
+	} catch (err) {
+		console.warn(`⚠️ processImage failed: ${err.message}`)
+		return null
+	}
+}
+
 // Post to Facebook Page
 async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, dbPostId) {
 	const { pageId } = pageSetting
@@ -153,12 +231,31 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 	let fbPostId = null
 
 	if (pageSetting.postAsPhoto && imageUrl) {
-		// 1. Post Photo (Higher reach, potential copyright risk)
-		const response = await axios.post(
-			`https://graph.facebook.com/v20.0/${pageId}/photos`,
-			{ url: imageUrl, message: fullCaption, access_token: pageAccessToken }
-		)
-		fbPostId = response.data.id
+		// Process image: resize 1080×1080 + gradient + border + logo
+		const processedBuf = await processImage(imageUrl, rawTitle)
+
+		if (processedBuf) {
+			// Upload as multipart buffer (not URL)
+			const photoForm = new FormData()
+			photoForm.append('source', processedBuf, { filename: 'photo.jpg', contentType: 'image/jpeg' })
+			photoForm.append('message', fullCaption)
+			photoForm.append('access_token', pageAccessToken)
+
+			const response = await axios.post(
+				`https://graph.facebook.com/v20.0/${pageId}/photos`,
+				photoForm,
+				{ headers: photoForm.getHeaders() }
+			)
+			fbPostId = response.data.id
+		} else {
+			// Fallback to link post if image processing fails
+			console.warn('⚠️ Image processing failed, falling back to link post')
+			const response = await axios.post(
+				`https://graph.facebook.com/v20.0/${pageId}/feed`,
+				{ message: fullCaption, link, access_token: pageAccessToken }
+			)
+			fbPostId = response.data.id
+		}
 	} else {
 		// 1. Post as Link Preview (100% Copyright Safe, Default)
 		const response = await axios.post(
