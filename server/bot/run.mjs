@@ -232,30 +232,15 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 			// Add Category Tag
 			const tagBuf = await sharp({
 				text: {
-					text: `<span foreground="white" font="Prompt Bold 21" letter_spacing="2000">${tag}</span>`,
+					text: `<span foreground="white" font="Prompt Bold 46" letter_spacing="2000">${tag}</span>`,
 					fontfile: FONT_PATH,
 					rgba: true,
 					dpi: 72
 				}
 			}).png().toBuffer();
-			// Pango baseline roughly compensates for the y difference. We place top at ~792
-			compositeLayers.push({ input: tagBuf, top: 792, left: 60 })
-
-			// Add Headline Lines
-			let startY = 834
-			for (let idx = 0; idx < Math.min(wrappedLines.length, 3); idx++) {
-				const line = wrappedLines[idx];
-				const lineBuf = await sharp({
-					text: {
-						text: `<span foreground="white" font="Prompt Bold 34">${line}</span>`,
-						fontfile: FONT_PATH,
-						rgba: true,
-						dpi: 72
-					}
-				}).png().toBuffer();
-				compositeLayers.push({ input: lineBuf, top: startY, left: 60 });
-				startY += 65;
-			}
+			
+			// Position the tag neatly at the bottom-left
+			compositeLayers.push({ input: tagBuf, top: SIZE - 120, left: 60 })
 		}
 
 		compositeLayers.push({
