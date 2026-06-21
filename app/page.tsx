@@ -134,7 +134,7 @@ export default function DashboardPage() {
   const posts = Array.isArray(postsData) ? postsData : []
 
   const { data: settingsData, mutate: mutateSettings } =
-    useSWR<{ pageId?: string; pageAccessToken?: string; news_schedule: string[]; rss_feeds?: { name: string, url: string }[], disable_ai?: boolean, postAsPhoto?: boolean }>('/api/settings', fetcher)
+    useSWR<{ pageId?: string; pageAccessToken?: string; news_schedule: string[]; rss_feeds?: { name: string, url: string }[], disable_ai?: boolean, postAsPhoto?: boolean, addTextOnImage?: boolean }>('/api/settings', fetcher)
 
   const [editedPageId, setEditedPageId] = useState('')
   const [editedPageAccessToken, setEditedPageAccessToken] = useState('')
