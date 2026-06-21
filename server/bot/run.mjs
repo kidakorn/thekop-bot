@@ -169,26 +169,20 @@ async function processImage(imageUrl, headline = '') {
 			.resize(SIZE, SIZE, { fit: 'cover', position: 'centre' })
 			.toBuffer()
 
-		// 3. Gradient overlay — เข้มขึ้นตั้งแต่ 50% ถึงล่างสุด (สำหรับ text readability)
+		// 3. Gradient overlay — เข้มขึ้นตั้งแต่ 40% ถึงล่างสุด
 		const gradientSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
 			<defs>
 				<linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-					<stop offset="0%"  stop-color="#000" stop-opacity="0.05"/>
-					<stop offset="50%" stop-color="#000" stop-opacity="0.30"/>
-					<stop offset="100%" stop-color="#000" stop-opacity="0.72"/>
+					<stop offset="0%"  stop-color="#000" stop-opacity="0.0"/>
+					<stop offset="40%" stop-color="#000" stop-opacity="0.20"/>
+					<stop offset="75%" stop-color="#000" stop-opacity="0.62"/>
+					<stop offset="100%" stop-color="#000" stop-opacity="0.88"/>
 				</linearGradient>
 			</defs>
 			<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
 		</svg>`
 
-		// 4. Border — กรอบแดง LFC รอบ 4 ด้าน
-		const borderSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-			<rect x="${BORDER/2}" y="${BORDER/2}"
-				width="${SIZE - BORDER}" height="${SIZE - BORDER}"
-				fill="none" stroke="#C8102E" stroke-width="${BORDER}" opacity="0.92"/>
-		</svg>`
-
-		// 5. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
+		// 4. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
 		const logoBuf = await sharp(LOGO_PATH)
 			.resize(180, 180, { fit: 'inside' })
 			.toBuffer()
@@ -196,15 +190,14 @@ async function processImage(imageUrl, headline = '') {
 		const logoW = logoMeta.width ?? 180
 		const logoH = logoMeta.height ?? 180
 
-		// 6. Composite ทุก layer
+		// 5. Composite: gradient + logo (ไม่มีกรอบ)
 		const result = await sharp(base)
 			.composite([
 				{ input: Buffer.from(gradientSvg), top: 0, left: 0 },
-				{ input: Buffer.from(borderSvg), top: 0, left: 0 },
 				{
 					input: logoBuf,
-					top: SIZE - logoH - 28 - BORDER,
-					left: SIZE - logoW - 28 - BORDER,
+					top: SIZE - logoH - 28,
+					left: SIZE - logoW - 28,
 				},
 			])
 			.jpeg({ quality: 90 })
