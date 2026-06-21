@@ -211,34 +211,11 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 			<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
 		</svg>`
 
-		// 4. Text Overlay (ฝัง Font Base64)
+		// 4. Text Overlay (Native Sharp text using Pango)
 		const tag = getNewsCategory(engTitle)
 		const wrappedLines = wrapText(thTitle, 40)
 		
-		const fontBuffer = await readFile(FONT_PATH)
-		const fontBase64 = fontBuffer.toString('base64')
-
-		let textSvgLines = `<text x="60" y="820" font-family="Prompt" font-weight="bold" font-size="28" fill="#ffffff" letter-spacing="2">${tag}</text>`
-		
-		let startY = 880
-		wrappedLines.forEach((line, idx) => {
-			if (idx < 3) {
-				textSvgLines += `<text x="60" y="${startY}" font-family="Prompt" font-weight="bold" font-size="46" fill="#ffffff">${line}</text>`
-				startY += 65
-			}
-		})
-
-		const textSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-			<style>
-				@font-face {
-					font-family: 'Prompt';
-					src: url(data:font/ttf;base64,${fontBase64}) format('truetype');
-				}
-			</style>
-			${textSvgLines}
-		</svg>`
-
-		// 4. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
+		// 5. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
 		const logoBuf = await sharp(LOGO_PATH)
 			.resize(180, 180, { fit: 'inside' })
 			.toBuffer()
@@ -252,7 +229,33 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 		]
 		
 		if (addTextOnImage) {
-			compositeLayers.push({ input: Buffer.from(textSvg), top: 0, left: 0 })
+			// Add Category Tag
+			const tagBuf = await sharp({
+				text: {
+					text: `<span foreground="white" font="Prompt Bold 21" letter_spacing="2000">${tag}</span>`,
+					fontfile: FONT_PATH,
+					rgba: true,
+					dpi: 72
+				}
+			}).png().toBuffer();
+			// Pango baseline roughly compensates for the y difference. We place top at ~792
+			compositeLayers.push({ input: tagBuf, top: 792, left: 60 })
+
+			// Add Headline Lines
+			let startY = 834
+			for (let idx = 0; idx < Math.min(wrappedLines.length, 3); idx++) {
+				const line = wrappedLines[idx];
+				const lineBuf = await sharp({
+					text: {
+						text: `<span foreground="white" font="Prompt Bold 34">${line}</span>`,
+						fontfile: FONT_PATH,
+						rgba: true,
+						dpi: 72
+					}
+				}).png().toBuffer();
+				compositeLayers.push({ input: lineBuf, top: startY, left: 60 });
+				startY += 65;
+			}
 		}
 
 		compositeLayers.push({
