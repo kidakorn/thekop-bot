@@ -10,9 +10,11 @@ import crypto from 'crypto'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { readFile } from 'fs/promises'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOGO_PATH = path.join(__dirname, 'assets', 'LOGO.png')
+const FONT_PATH = path.join(__dirname, 'assets', 'Prompt-Bold.ttf')
 
 const ALGORITHM = 'aes-256-gcm'
 
@@ -148,8 +150,35 @@ async function getArticleImage(url) {
 }
 
 // ─── Image Processing Pipeline ──────────────────────────────────────────────
-// สร้างรูป 1080×1080 จาก: รูปข่าว + gradient overlay + กรอบ + โลโก้
-async function processImage(imageUrl, headline = '') {
+
+function getNewsCategory(title) {
+	const t = title.toLowerCase()
+	if (t.includes('official') || t.includes('confirm') || t.includes('sign')) return 'OFFICIAL!'
+	if (t.includes('here we go') || t.includes('agree')) return 'HERE WE GO!'
+	if (t.includes('breaking')) return 'BREAKING NEWS'
+	if (t.includes('injury') || t.includes('ruled out')) return 'INJURY UPDATE'
+	return 'LATEST NEWS'
+}
+
+function wrapText(text, maxChars = 32) {
+	const words = text.split(' ')
+	const lines = []
+	let currentLine = ''
+
+	for (const word of words) {
+		if ((currentLine + word).length > maxChars) {
+			if (currentLine) lines.push(currentLine.trim())
+			currentLine = word + ' '
+		} else {
+			currentLine += word + ' '
+		}
+	}
+	if (currentLine) lines.push(currentLine.trim())
+	return lines
+}
+
+// สร้างรูป 1080×1080 จาก: รูปข่าว + gradient overlay + text + โลโก้
+async function processImage(imageUrl, engTitle = '', thTitle = '') {
 	const SIZE = 1080
 	const BORDER = 12
 
@@ -173,13 +202,40 @@ async function processImage(imageUrl, headline = '') {
 		const gradientSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
 			<defs>
 				<linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-					<stop offset="0%"  stop-color="#000" stop-opacity="0.0"/>
-					<stop offset="40%" stop-color="#000" stop-opacity="0.20"/>
-					<stop offset="75%" stop-color="#000" stop-opacity="0.62"/>
-					<stop offset="100%" stop-color="#000" stop-opacity="0.88"/>
+					<stop offset="0%"   stop-color="#000" stop-opacity="0.0"/>
+					<stop offset="40%"  stop-color="#000" stop-opacity="0.20"/>
+					<stop offset="75%"  stop-color="#000" stop-opacity="0.75"/>
+					<stop offset="100%" stop-color="#000" stop-opacity="0.95"/>
 				</linearGradient>
 			</defs>
 			<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
+		</svg>`
+
+		// 4. Text Overlay (ฝัง Font Base64)
+		const tag = getNewsCategory(engTitle)
+		const wrappedLines = wrapText(thTitle, 40)
+		
+		const fontBuffer = await readFile(FONT_PATH)
+		const fontBase64 = fontBuffer.toString('base64')
+
+		let textSvgLines = `<text x="60" y="820" font-family="Prompt" font-weight="bold" font-size="28" fill="#ffffff" letter-spacing="2">${tag}</text>`
+		
+		let startY = 880
+		wrappedLines.forEach((line, idx) => {
+			if (idx < 3) {
+				textSvgLines += `<text x="60" y="${startY}" font-family="Prompt" font-weight="bold" font-size="46" fill="#ffffff">${line}</text>`
+				startY += 65
+			}
+		})
+
+		const textSvg = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+			<style>
+				@font-face {
+					font-family: 'Prompt';
+					src: url(data:font/ttf;base64,${fontBase64}) format('truetype');
+				}
+			</style>
+			${textSvgLines}
 		</svg>`
 
 		// 4. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
@@ -190,10 +246,11 @@ async function processImage(imageUrl, headline = '') {
 		const logoW = logoMeta.width ?? 180
 		const logoH = logoMeta.height ?? 180
 
-		// 5. Composite: gradient + logo (ไม่มีกรอบ)
+		// 6. Composite: gradient + text + logo
 		const result = await sharp(base)
 			.composite([
 				{ input: Buffer.from(gradientSvg), top: 0, left: 0 },
+				{ input: Buffer.from(textSvg), top: 0, left: 0 },
 				{
 					input: logoBuf,
 					top: SIZE - logoH - 28,
@@ -224,8 +281,10 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 	let fbPostId = null
 
 	if (pageSetting.postAsPhoto && imageUrl) {
-		// Process image: resize 1080×1080 + gradient + border + logo
-		const processedBuf = await processImage(imageUrl, rawTitle)
+		// Extract Thai title from caption (it's the first line before \n\n)
+		const thTitle = caption.split('\n\n')[0] || rawTitle
+		// Process image: resize 1080×1080 + gradient + text + logo
+		const processedBuf = await processImage(imageUrl, rawTitle, thTitle)
 
 		if (processedBuf) {
 			// Upload as multipart buffer (not URL)
