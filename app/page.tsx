@@ -142,6 +142,7 @@ export default function DashboardPage() {
   const [editedFeeds, setEditedFeeds] = useState<{ name: string, url: string }[]>([])
   const [editedDisableAi, setEditedDisableAi] = useState<boolean>(false)
   const [editedPostAsPhoto, setEditedPostAsPhoto] = useState<boolean>(false)
+  const [editedAddTextOnImage, setEditedAddTextOnImage] = useState<boolean>(true)
   const [newNewsTime, setNewNewsTime] = useState('12:00')
   const [newFeedName, setNewFeedName] = useState('')
   const [newFeedUrl, setNewFeedUrl] = useState('')
@@ -162,6 +163,9 @@ export default function DashboardPage() {
       }
       if (typeof settingsData.postAsPhoto === 'boolean') {
         setEditedPostAsPhoto(settingsData.postAsPhoto)
+      }
+      if (typeof settingsData.addTextOnImage === 'boolean') {
+        setEditedAddTextOnImage(settingsData.addTextOnImage)
       }
     }
   }, [settingsData])
@@ -205,7 +209,8 @@ export default function DashboardPage() {
           news_schedule: editedNews,
           rss_feeds: editedFeeds,
           disable_ai: editedDisableAi,
-          postAsPhoto: editedPostAsPhoto
+          postAsPhoto: editedPostAsPhoto,
+          addTextOnImage: editedAddTextOnImage
         })
       })
 
@@ -1312,7 +1317,7 @@ export default function DashboardPage() {
                           await fetch('/api/settings', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: newVal, postAsPhoto: editedPostAsPhoto })
+                            body: JSON.stringify({ news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: newVal, postAsPhoto: editedPostAsPhoto, addTextOnImage: editedAddTextOnImage })
                           })
                           mutateSettings()
                           showToast(newVal ? 'ปิดการแปลภาษาไทยแล้ว' : 'เปิดระบบแปลภาษาไทยแล้ว', 'success')
@@ -1343,7 +1348,7 @@ export default function DashboardPage() {
                           await fetch('/api/settings', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ pageId: editedPageId, pageAccessToken: editedPageAccessToken, news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: editedDisableAi, postAsPhoto: newVal })
+                            body: JSON.stringify({ pageId: editedPageId, pageAccessToken: editedPageAccessToken, news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: editedDisableAi, postAsPhoto: newVal, addTextOnImage: editedAddTextOnImage })
                           })
                           mutateSettings()
                           showToast(newVal ? 'เปลี่ยนเป็นโพสต์แบบอัปโหลดรูปแล้ว' : 'เปลี่ยนเป็นโพสต์แบบแชร์ลิงก์แล้ว', 'success')
@@ -1353,6 +1358,39 @@ export default function DashboardPage() {
                     <span className="ios-toggle-slider" />
                   </label>
                 </div>
+
+                {/* Add Text On Image Toggle */}
+                {editedPostAsPhoto && (
+                  <div className="ios-toggle-wrap">
+                    <div className="ios-toggle-info">
+                      <div className="ios-toggle-label">
+                        <span style={{ fontSize: 16 }}>✍️</span>
+                        เขียนหัวข้อข่าวบนรูป
+                      </div>
+                      <div className="ios-toggle-desc">เปิด = พิมพ์ข้อความ Category และพาดหัวข่าวลงบนภาพอัตโนมัติ</div>
+                    </div>
+                    <label className="ios-toggle">
+                      <input
+                        type="checkbox"
+                        checked={editedAddTextOnImage}
+                        onChange={async () => {
+                          const newVal = !editedAddTextOnImage
+                          setEditedAddTextOnImage(newVal)
+                          try {
+                            await fetch('/api/settings', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ pageId: editedPageId, pageAccessToken: editedPageAccessToken, news_schedule: editedNews, rss_feeds: editedFeeds, disable_ai: editedDisableAi, postAsPhoto: editedPostAsPhoto, addTextOnImage: newVal })
+                            })
+                            mutateSettings()
+                            showToast(newVal ? 'เปิดการเขียนตัวหนังสือบนภาพแล้ว' : 'ปิดการเขียนตัวหนังสือบนภาพแล้ว', 'success')
+                          } catch { showToast('Failed to save', 'error') }
+                        }}
+                      />
+                      <span className="ios-toggle-slider" />
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div className="table-card" style={{ marginBottom: 20 }}>

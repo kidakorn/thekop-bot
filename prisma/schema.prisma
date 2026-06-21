@@ -111,6 +111,7 @@ model PageSetting {
   newsSchedule       String?  // JSON string of times e.g. '["08:00","12:00"]'
   disableAi          Boolean  @default(false)
   postAsPhoto        Boolean  @default(false) // If true, upload photo. If false (default), post link preview.
+  addTextOnImage     Boolean  @default(true)  // If true, write headline and tag on the image
   isActive           Boolean  @default(true)
   
   // Affiliate Settings

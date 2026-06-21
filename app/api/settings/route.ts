@@ -37,6 +37,7 @@ export async function GET() {
 			],
 			disable_ai: pageSetting?.disableAi ?? false,
 			postAsPhoto: pageSetting?.postAsPhoto ?? false,
+			addTextOnImage: pageSetting?.addTextOnImage ?? true,
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings GET error:', error)
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
 		const userId = session.user.id
 
 		const body = await request.json()
-		const { pageId, pageAccessToken, news_schedule, rss_feeds, disable_ai, postAsPhoto } = body
+		const { pageId, pageAccessToken, news_schedule, rss_feeds, disable_ai, postAsPhoto, addTextOnImage } = body
 
 		if (news_schedule && !Array.isArray(news_schedule)) {
 			return NextResponse.json({ error: 'Invalid schedules format' }, { status: 400 })
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
 				...(news_schedule && { newsSchedule: JSON.stringify(news_schedule.sort()) }),
 				...(typeof disable_ai === 'boolean' && { disableAi: disable_ai }),
 				...(typeof postAsPhoto === 'boolean' && { postAsPhoto: postAsPhoto }),
+				...(typeof addTextOnImage === 'boolean' && { addTextOnImage: addTextOnImage }),
 			},
 			create: {
 				userId,
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
 				newsSchedule: news_schedule ? JSON.stringify(news_schedule.sort()) : JSON.stringify(['08:00', '12:00', '16:00', '20:00']),
 				disableAi: typeof disable_ai === 'boolean' ? disable_ai : false,
 				postAsPhoto: typeof postAsPhoto === 'boolean' ? postAsPhoto : false,
+				addTextOnImage: typeof addTextOnImage === 'boolean' ? addTextOnImage : true,
 			}
 		})
 
@@ -124,7 +127,8 @@ export async function POST(request: Request) {
 			news_schedule: updatedPageSetting.newsSchedule ? JSON.parse(updatedPageSetting.newsSchedule) : [], 
 			rss_feeds: newRssFeeds,
 			disable_ai: updatedPageSetting.disableAi,
-			postAsPhoto: updatedPageSetting.postAsPhoto
+			postAsPhoto: updatedPageSetting.postAsPhoto,
+			addTextOnImage: updatedPageSetting.addTextOnImage
 		}, { status: 200 })
 	} catch (error) {
 		console.error('Settings POST error:', error)

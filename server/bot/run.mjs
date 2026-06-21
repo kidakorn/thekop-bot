@@ -178,7 +178,7 @@ function wrapText(text, maxChars = 32) {
 }
 
 // สร้างรูป 1080×1080 จาก: รูปข่าว + gradient overlay + text + โลโก้
-async function processImage(imageUrl, engTitle = '', thTitle = '') {
+async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImage = true) {
 	const SIZE = 1080
 	const BORDER = 12
 
@@ -247,16 +247,22 @@ async function processImage(imageUrl, engTitle = '', thTitle = '') {
 		const logoH = logoMeta.height ?? 180
 
 		// 6. Composite: gradient + text + logo
+		const compositeLayers = [
+			{ input: Buffer.from(gradientSvg), top: 0, left: 0 }
+		]
+		
+		if (addTextOnImage) {
+			compositeLayers.push({ input: Buffer.from(textSvg), top: 0, left: 0 })
+		}
+
+		compositeLayers.push({
+			input: logoBuf,
+			top: SIZE - logoH - 28,
+			left: SIZE - logoW - 28,
+		})
+
 		const result = await sharp(base)
-			.composite([
-				{ input: Buffer.from(gradientSvg), top: 0, left: 0 },
-				{ input: Buffer.from(textSvg), top: 0, left: 0 },
-				{
-					input: logoBuf,
-					top: SIZE - logoH - 28,
-					left: SIZE - logoW - 28,
-				},
-			])
+			.composite(compositeLayers)
 			.jpeg({ quality: 90 })
 			.toBuffer()
 
@@ -284,7 +290,7 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 		// Extract Thai title from caption (it's the first line before \n\n)
 		const thTitle = caption.split('\n\n')[0] || rawTitle
 		// Process image: resize 1080×1080 + gradient + text + logo
-		const processedBuf = await processImage(imageUrl, rawTitle, thTitle)
+		const processedBuf = await processImage(imageUrl, rawTitle, thTitle, pageSetting.addTextOnImage)
 
 		if (processedBuf) {
 			// Upload as multipart buffer (not URL)
