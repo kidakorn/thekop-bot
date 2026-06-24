@@ -1774,12 +1774,24 @@ export default function DashboardPage() {
                 </li>
                 <hr style={{ border: 0, borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
                 <li>
-                  <strong>ไปที่ Facebook Developers</strong>
-                  <div>เข้าเว็บ <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>developers.facebook.com</a> สร้าง App เลือกประเภทเป็น <b>Business (ธุรกิจ)</b></div>
+                  <strong>สร้าง App ใน Facebook Developers</strong>
+                  <div style={{ marginTop: 4 }}>
+                    1. เข้าเว็บ <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>developers.facebook.com</a> แล้วล็อกอินด้วยบัญชี Facebook<br/>
+                    2. คลิกปุ่ม <b>My Apps (แอปของฉัน)</b> ที่มุมขวาบน<br/>
+                    3. คลิกปุ่ม <b>Create App (สร้างแอป)</b> สีเขียวๆ<br/>
+                    4. เลือก <b>Other (อื่นๆ)</b> แล้วกด Next<br/>
+                    5. เลือกประเภทแอปเป็น <b>Business (ธุรกิจ)</b> แล้วกด Next<br/>
+                    6. ตั้งชื่อแอป (เช่น บอทโพสต์ข่าว) ใส่อีเมลของคุณ แล้วกด <b>Create app</b>
+                  </div>
                 </li>
                 <li>
                   <strong>เพิ่มผลิตภัณฑ์ Facebook Login for Business</strong>
-                  <div>ในหน้า App Dashboard เลือกเมนู Add Product &gt; <b>Facebook Login for Business</b></div>
+                  <div style={{ marginTop: 4 }}>
+                    1. พอสร้างแอปเสร็จ ระบบจะพามาหน้า App Dashboard<br/>
+                    2. เลื่อนลงมาหาเมนู <b>Add a Product (เพิ่มผลิตภัณฑ์)</b><br/>
+                    3. หาการ์ดที่ชื่อว่า <b>Facebook Login for Business</b> แล้วกดปุ่ม <b>Set Up (ตั้งค่า)</b><br/>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(เมื่อกดแล้วไม่ต้องทำอะไรต่อในหน้านั้น ให้ทำข้อถัดไปได้เลย)</span>
+                  </div>
                 </li>
                 <li>
                   <strong>สร้าง Short-lived Token (อายุสั้น)</strong>
