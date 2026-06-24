@@ -1763,37 +1763,49 @@ export default function DashboardPage() {
               </button>
             </div>
             <div style={{ padding: 24, fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6 }}>
-              <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <li>
+                  <strong style={{ fontSize: 15, color: '#1d4ed8' }}>วิธีหา Facebook Page ID ของคุณ</strong>
+                  <div style={{ marginTop: 4 }}>
+                    1. เปิด Facebook ไปที่หน้าเพจของคุณ (เข้าในฐานะแอดมิน)<br/>
+                    2. คลิกที่แท็บ <b>About (เกี่ยวกับ)</b> &gt; <b>Page Transparency (ความโปร่งใสของเพจ)</b><br/>
+                    3. เลื่อนลงมาจะเจอ <b>Page ID (รหัสเพจ)</b> ที่เป็นตัวเลขยาวๆ ให้ก็อปปี้มาใส่ในช่องตั้งค่าได้เลย
+                  </div>
+                </li>
+                <hr style={{ border: 0, borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
                 <li>
                   <strong>ไปที่ Facebook Developers</strong>
-                  <div>เข้าเว็บ <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>developers.facebook.com</a> สร้าง App เลือกประเภทเป็น <b>Business</b></div>
+                  <div>เข้าเว็บ <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>developers.facebook.com</a> สร้าง App เลือกประเภทเป็น <b>Business (ธุรกิจ)</b></div>
                 </li>
                 <li>
                   <strong>เพิ่มผลิตภัณฑ์ Facebook Login for Business</strong>
-                  <div>ในหน้า App Dashboard เลือก Add Product &gt; <b>Facebook Login for Business</b></div>
+                  <div>ในหน้า App Dashboard เลือกเมนู Add Product &gt; <b>Facebook Login for Business</b></div>
                 </li>
                 <li>
-                  <strong>สร้าง Short-lived Token</strong>
-                  <div>ไปที่ <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>Graph API Explorer</a></div>
-                  <ul style={{ paddingLeft: 20, marginTop: 4, color: 'var(--text-muted)' }}>
-                    <li>เลือก Facebook App ของคุณ</li>
-                    <li>ตรง User or Page เลือก <b>"Get Page Access Token"</b> (เลือกเพจของคุณ)</li>
-                    <li>เพิ่ม Permissions: <code>pages_manage_posts</code>, <code>pages_read_engagement</code></li>
-                    <li>กด <b>Generate Access Token</b> (ก็อปปี้ไว้)</li>
+                  <strong>สร้าง Short-lived Token (อายุสั้น)</strong>
+                  <div>ไปที่เครื่องมือ <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>Graph API Explorer</a></div>
+                  <ul style={{ paddingLeft: 20, marginTop: 4, color: 'var(--text-muted)', listStyleType: 'disc' }}>
+                    <li>ช่อง Facebook App: เลือก App ที่เพิ่งสร้าง</li>
+                    <li>ช่อง User or Page: เลือก <b>"Get Page Access Token"</b> แล้วคลิกเลือกเพจของคุณ</li>
+                    <li>ช่อง Permissions: พิมพ์เพิ่ม <code>pages_manage_posts</code> และ <code>pages_read_engagement</code></li>
+                    <li>กดปุ่ม <b>Generate Access Token</b> แล้วก็อปปี้ Token ที่ได้มาเก็บไว้</li>
                   </ul>
                 </li>
                 <li>
-                  <strong>แปลงเป็น Long-lived Token (อยู่ได้ 60 วัน)</strong>
-                  <div>ไปที่แถบเครื่องมือ <b>Access Token Debugger</b> เอา Token ที่ได้ไปวางแล้วกด <b>Extend Access Token</b></div>
+                  <strong>แปลงเป็น Long-lived Token (อายุ 60 วัน)</strong>
+                  <div>ไปที่หน้า <a href="https://developers.facebook.com/tools/debug/accesstoken/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>Access Token Debugger</a> เอา Token จากข้อที่แล้วไปวาง กด <b>Debug</b> แล้วเลื่อนลงมากดปุ่ม <b>Extend Access Token</b> จะได้ Token ใหม่ที่ยาวกว่าเดิม ให้ก็อปปี้ไว้</div>
                 </li>
                 <li>
-                  <strong>แปลงเป็น Permanent Token (ไม่มีวันหมดอายุ)</strong>
-                  <div style={{ background: 'var(--bg-main)', padding: 12, borderRadius: 8, marginTop: 8, fontFamily: 'monospace', fontSize: 12, overflowX: 'auto', border: '1px solid var(--border-light)' }}>
-                    https://graph.facebook.com/v19.0/<b>&#123;PAGE_ID&#125;</b>?fields=access_token&access_token=<b>&#123;LONG_LIVED_TOKEN_จากข้อ4&#125;</b>
+                  <strong style={{ color: '#c2410c' }}>แปลงเป็น Permanent Token (ไม่มีวันหมดอายุ - สำคัญมาก!)</strong>
+                  <div style={{ background: 'var(--bg-main)', padding: 12, borderRadius: 8, marginTop: 8, fontFamily: 'monospace', fontSize: 12, overflowX: 'auto', border: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>
+                    https://graph.facebook.com/v19.0/<b>&#123;PAGE_ID&#125;</b>?fields=access_token&amp;access_token=<b>&#123;LONG_LIVED_TOKEN_จากข้อ5&#125;</b>
                   </div>
                   <div style={{ marginTop: 8 }}>
-                    เอา URL ด้านบนไปเปิดในเบราว์เซอร์ (แก้ค่าในวงเล็บให้ถูกต้อง) <br />
-                    คุณจะได้ JSON กลับมา มี <code>"access_token"</code> ที่ <b>"ไม่มีวันหมดอายุ"</b> เอาค่านั้นมาใส่ในระบบได้เลย! 🎉
+                    1. ก็อปปี้ URL ด้านบนไปวางในโปรแกรมแกรมจดบันทึก (Notepad)<br/>
+                    2. เปลี่ยน <b>&#123;PAGE_ID&#125;</b> เป็นตัวเลข Page ID จากข้อ 1<br/>
+                    3. เปลี่ยน <b>&#123;LONG_LIVED_TOKEN_จากข้อ5&#125;</b> เป็น Token ที่ได้จากข้อ 5<br/>
+                    4. เอา URL ที่แก้เสร็จแล้วไปเปิดในช่องค้นหาเว็บ (Address Bar) ของเบราว์เซอร์ แล้วกด Enter<br/>
+                    5. หน้าเว็บจะแสดงข้อความยึกยือ (JSON) ให้หาคำว่า <code>"access_token"</code> <b>นำข้อความในเครื่องหมายคำพูดด้านหลังมาใช้ ถือเป็นอันเสร็จสิ้น! 🎉</b>
                   </div>
                 </li>
               </ol>
