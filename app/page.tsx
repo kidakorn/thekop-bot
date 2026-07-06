@@ -110,8 +110,14 @@ export default function DashboardPage() {
     setTriggeringNews(true)
     try {
       const res = await fetch('/api/run-news', { method: 'POST' })
-      if (res.ok) showToast('🚀 Bot started (News)', 'success')
-      else showToast('Failed to start', 'error')
+      if (res.ok) {
+        showToast('🚀 Bot started (News)', 'success')
+      } else if (res.status === 401) {
+        showToast('Session expired. Redirecting to login...', 'error')
+        setTimeout(() => window.location.reload(), 1500)
+      } else {
+        showToast('Failed to start', 'error')
+      }
     } catch (e) { showToast('Server offline', 'error') }
     setTimeout(() => setTriggeringNews(false), 2000)
   }
