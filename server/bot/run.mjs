@@ -90,7 +90,7 @@ function parseRSS(xmlText) {
 			items.push({
 				title: decodedTitle,
 				link: link.trim(),
-				description: decodedDescription.slice(0, 500),
+				description: decodedDescription.slice(0, 1500),
 				pubDate: pubDate.trim(),
 				pubDateMs: isNaN(pubDateMs) ? 0 : pubDateMs,
 				image: imageUrl
@@ -417,7 +417,7 @@ async function runBotForUser(pageSetting, activeFeeds) {
 		
 		if (pageSetting.disableAi) {
 			console.log(`🤖 AI is disabled for User [${pageSetting.userId}]. Using raw English.`)
-			thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 300)}...`
+			thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 1000)}...`
 		} else {
 			console.log(`🤖 Translating using google-translate-api-x for User [${pageSetting.userId}]...`)
 			try {
@@ -426,12 +426,12 @@ async function runBotForUser(pageSetting, activeFeeds) {
 				
 				const translatedTitle = titleRes.text
 				let translatedDesc = descRes.text
-				translatedDesc = translatedDesc.slice(0, 300) + (translatedDesc.length > 300 ? '...' : '')
+				translatedDesc = translatedDesc.slice(0, 1000) + (translatedDesc.length > 1000 ? '...' : '')
 				
 				thaiSummary = `${translatedTitle}\n\n${translatedDesc}`
 			} catch (err) {
 				console.warn(`⚠️ Free translation failed for User [${pageSetting.userId}], falling back to raw English:`, err.message)
-				thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 300)}...`
+				thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 1000)}...`
 			}
 		}
 
