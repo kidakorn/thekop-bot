@@ -2,7 +2,7 @@ name: The Kop Bot Runner
 
 on:
   schedule:
-    - cron: '0,30 * * * *' # Run every 30 minutes (XX:00 and XX:30)
+    - cron: '17,47 * * * *' # Run at xx:17 and xx:47 to avoid Github Actions congestion delays
   repository_dispatch:
     types: [run-news, refresh-token]
   workflow_dispatch:
