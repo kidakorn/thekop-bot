@@ -10,3 +10,14 @@ export interface PostStats {
   failed: number
   pending: number
 }
+
+export interface Post {
+  id: string
+  title: string
+  status: string
+  fbPostId: string | null
+  postedAt: string | null
+  createdAt: string
+  link?: string
+  content?: string
+}
