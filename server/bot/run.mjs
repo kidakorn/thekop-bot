@@ -19,34 +19,34 @@ const FONT_PATH = path.join(__dirname, 'assets', 'Prompt-Bold.ttf')
 const ALGORITHM = 'aes-256-gcm'
 
 function getKey() {
-  const secret = process.env.NEXTAUTH_SECRET || 'fallback_secret_for_development_only_123'
-  return crypto.scryptSync(secret, 'salt', 32)
+	const secret = process.env.NEXTAUTH_SECRET || 'fallback_secret_for_development_only_123'
+	return crypto.scryptSync(secret, 'salt', 32)
 }
 
 function decryptToken(encryptedText) {
-  if (!encryptedText) return encryptedText
-  
-  try {
-    const parts = encryptedText.split(':')
-    if (parts.length !== 3) {
-      return encryptedText
-    }
-    
-    const [ivHex, authTagHex, encryptedDataHex] = parts
-    const iv = Buffer.from(ivHex, 'hex')
-    const authTag = Buffer.from(authTagHex, 'hex')
-    
-    const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv)
-    decipher.setAuthTag(authTag)
-    
-    let decrypted = decipher.update(encryptedDataHex, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-    
-    return decrypted
-  } catch (err) {
-    console.error('Decryption error (might be plain-text token):', err.message)
-    return encryptedText
-  }
+	if (!encryptedText) return encryptedText
+
+	try {
+		const parts = encryptedText.split(':')
+		if (parts.length !== 3) {
+			return encryptedText
+		}
+
+		const [ivHex, authTagHex, encryptedDataHex] = parts
+		const iv = Buffer.from(ivHex, 'hex')
+		const authTag = Buffer.from(authTagHex, 'hex')
+
+		const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv)
+		decipher.setAuthTag(authTag)
+
+		let decrypted = decipher.update(encryptedDataHex, 'hex', 'utf8')
+		decrypted += decipher.final('utf8')
+
+		return decrypted
+	} catch (err) {
+		console.error('Decryption error (might be plain-text token):', err.message)
+		return encryptedText
+	}
 }
 
 // Initialize Prisma
@@ -135,7 +135,7 @@ async function fetchNews(activeFeeds) {
 // Extract main image from article HTML
 async function getArticleImage(url) {
 	try {
-		const res = await axios.get(url, { 
+		const res = await axios.get(url, {
 			timeout: 10000,
 			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
 		})
@@ -214,7 +214,7 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 		// 4. Text Overlay (Native Sharp text using Pango)
 		const tag = getNewsCategory(engTitle)
 		const wrappedLines = wrapText(thTitle, 40)
-		
+
 		// 5. Logo — resize ให้ไม่เกิน 180px และวาง bottom-right
 		const logoBuf = await sharp(LOGO_PATH)
 			.resize(180, 180, { fit: 'inside' })
@@ -227,7 +227,7 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 		const compositeLayers = [
 			{ input: Buffer.from(gradientSvg), top: 0, left: 0 }
 		]
-		
+
 		if (addTextOnImage) {
 			// Add Category Tag
 			const tagBuf = await sharp({
@@ -238,7 +238,7 @@ async function processImage(imageUrl, engTitle = '', thTitle = '', addTextOnImag
 					dpi: 72
 				}
 			}).png().toBuffer();
-			
+
 			// Position the tag neatly at the bottom-left
 			compositeLayers.push({ input: tagBuf, top: SIZE - 120, left: 60 })
 		}
@@ -311,60 +311,60 @@ async function postToFacebook(caption, link, imageUrl, rawTitle, pageSetting, db
 		fbPostId = response.data.id
 	}
 
-		// 2. Post Comment with Link
+	// 2. Post Comment with Link
+	try {
+		await axios.post(
+			`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
+			{ message: commentText, access_token: pageAccessToken }
+		)
+		console.log(`💬 Added link to the first comment of post ${fbPostId}`)
+	} catch (commentErr) {
+		console.error(`⚠️ Failed to add comment to post ${fbPostId}:`, commentErr.response?.data || commentErr.message)
+	}
+
+	// 3. Post Affiliate Comment
+	if (pageSetting.affiliateEnabled && pageSetting.affiliateLinks) {
 		try {
-			await axios.post(
-				`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
-				{ message: commentText, access_token: pageAccessToken }
-			)
-			console.log(`💬 Added link to the first comment of post ${fbPostId}`)
-		} catch (commentErr) {
-			console.error(`⚠️ Failed to add comment to post ${fbPostId}:`, commentErr.response?.data || commentErr.message)
-		}
+			const links = JSON.parse(pageSetting.affiliateLinks)
+			if (links.length > 0) {
+				let selectedLink = null
+				let newIndex = pageSetting.lastAffiliateIndex || 0
 
-		// 3. Post Affiliate Comment
-		if (pageSetting.affiliateEnabled && pageSetting.affiliateLinks) {
-			try {
-				const links = JSON.parse(pageSetting.affiliateLinks)
-				if (links.length > 0) {
-					let selectedLink = null
-					let newIndex = pageSetting.lastAffiliateIndex || 0
+				if (pageSetting.affiliateMode === 'fixed') {
+					selectedLink = links[0]
+				} else if (pageSetting.affiliateMode === 'random') {
+					selectedLink = links[Math.floor(Math.random() * links.length)]
+				} else { // rotate
+					if (newIndex >= links.length) newIndex = 0
+					selectedLink = links[newIndex]
+					newIndex++
 
-					if (pageSetting.affiliateMode === 'fixed') {
-						selectedLink = links[0]
-					} else if (pageSetting.affiliateMode === 'random') {
-						selectedLink = links[Math.floor(Math.random() * links.length)]
-					} else { // rotate
-						if (newIndex >= links.length) newIndex = 0
-						selectedLink = links[newIndex]
-						newIndex++
-						
-						// Update db for next rotation
-						await prisma.pageSetting.update({
-							where: { userId: pageSetting.userId },
-							data: { lastAffiliateIndex: newIndex }
-						})
-					}
-
-					if (selectedLink) {
-						const ctaText = pageSetting.affiliateTag || 'ช้อปสินค้า Liverpool แท้'
-						
-						// Use raw Shopee link so Facebook shows Shopee preview
-						const affiliateComment = `${ctaText}\n${selectedLink.url}`
-						
-						await axios.post(
-							`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
-							{ message: affiliateComment, access_token: pageAccessToken }
-						)
-						console.log(`🛍️ Added Affiliate comment to post ${fbPostId}`)
-					}
+					// Update db for next rotation
+					await prisma.pageSetting.update({
+						where: { userId: pageSetting.userId },
+						data: { lastAffiliateIndex: newIndex }
+					})
 				}
-			} catch (affiliateErr) {
-				console.error(`⚠️ Failed to add affiliate comment:`, affiliateErr.response?.data || affiliateErr.message)
-			}
-		}
 
-		return fbPostId
+				if (selectedLink) {
+					const ctaText = pageSetting.affiliateTag || 'ช้อปสินค้า Liverpool แท้'
+
+					// Use raw Shopee link so Facebook shows Shopee preview
+					const affiliateComment = `${ctaText}\n${selectedLink.url}`
+
+					await axios.post(
+						`https://graph.facebook.com/v20.0/${fbPostId}/comments`,
+						{ message: affiliateComment, access_token: pageAccessToken }
+					)
+					console.log(`🛍️ Added Affiliate comment to post ${fbPostId}`)
+				}
+			}
+		} catch (affiliateErr) {
+			console.error(`⚠️ Failed to add affiliate comment:`, affiliateErr.response?.data || affiliateErr.message)
+		}
+	}
+
+	return fbPostId
 }
 
 // Core bot function for a specific user
@@ -381,9 +381,9 @@ async function runBotForUser(pageSetting, activeFeeds) {
 
 		// Anti-duplicate logic for this user
 		const recentPosts = await prisma.post.findMany({
-			where: { 
+			where: {
 				userId: pageSetting.userId,
-				createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
+				createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
 			},
 			select: { title: true }
 		})
@@ -399,8 +399,8 @@ async function runBotForUser(pageSetting, activeFeeds) {
 
 		let latest = null
 		for (const item of news) {
-			const existing = await prisma.post.findFirst({ 
-				where: { userId: pageSetting.userId, link: item.link } 
+			const existing = await prisma.post.findFirst({
+				where: { userId: pageSetting.userId, link: item.link }
 			})
 			if (!existing && !isDuplicate(item.title)) {
 				latest = item
@@ -414,7 +414,7 @@ async function runBotForUser(pageSetting, activeFeeds) {
 		}
 
 		let thaiSummary = latest.description
-		
+
 		if (pageSetting.disableAi) {
 			console.log(`🤖 AI is disabled for User [${pageSetting.userId}]. Using raw English.`)
 			thaiSummary = `${latest.title}\n\n${latest.description.slice(0, 1000)}...`
@@ -423,11 +423,11 @@ async function runBotForUser(pageSetting, activeFeeds) {
 			try {
 				const titleRes = await translate(latest.title, { to: 'th' })
 				const descRes = await translate(latest.description, { to: 'th' })
-				
+
 				const translatedTitle = titleRes.text
 				let translatedDesc = descRes.text
 				translatedDesc = translatedDesc.slice(0, 1000) + (translatedDesc.length > 1000 ? '...' : '')
-				
+
 				thaiSummary = `${translatedTitle}\n\n${translatedDesc}`
 			} catch (err) {
 				console.warn(`⚠️ Free translation failed for User [${pageSetting.userId}], falling back to raw English:`, err.message)
@@ -495,9 +495,9 @@ async function isScheduledTime(pageSetting) {
 	// Check if we already posted in the last 25 minutes to avoid duplicate posts but allow both schedule runs
 	const recentWindow = new Date(Date.now() - 25 * 60 * 1000)
 	const recentPost = await prisma.post.findFirst({
-		where: { 
+		where: {
 			userId: pageSetting.userId,
-			createdAt: { gte: recentWindow } 
+			createdAt: { gte: recentWindow }
 		},
 		orderBy: { createdAt: 'desc' }
 	})
@@ -531,9 +531,9 @@ const args = process.argv.slice(2)
 async function main() {
 	try {
 		await cleanupOldPosts()
-		
+
 		const allSettings = await prisma.pageSetting.findMany()
-		
+
 		if (allSettings.length === 0) {
 			console.log('⚠️ No PageSettings found in database. Exiting.')
 			return
@@ -545,12 +545,12 @@ async function main() {
 				continue
 			}
 
-			const rssSources = await prisma.rssSource.findMany({ 
-				where: { userId: pageSetting.userId, isActive: true } 
+			const rssSources = await prisma.rssSource.findMany({
+				where: { userId: pageSetting.userId, isActive: true }
 			})
-			
-			const activeFeeds = rssSources.length > 0 
-				? rssSources.map(r => r.url) 
+
+			const activeFeeds = rssSources.length > 0
+				? rssSources.map(r => r.url)
 				: DEFAULT_RSS_FEEDS
 
 			if (args.includes('--news')) {
