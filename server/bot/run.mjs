@@ -482,18 +482,22 @@ async function isScheduledTime(pageSetting) {
 	}
 
 	const now = new Date()
-	const currentHour = now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok', hour: '2-digit', hourCycle: 'h23' })
+	// Fix 1: Use safe UTC offset approach for reliable timezone formatting across Node versions
+	const bkkTime = new Date(now.getTime() + 7 * 60 * 60 * 1000)
+	const currentHour = bkkTime.getUTCHours().toString().padStart(2, '0')
+
+	console.log(`🕐 Current Bangkok hour: ${currentHour}, Schedules: ${newsTimes.join(', ')}`)
 
 	// Check if this hour is in the schedule
 	const hasScheduleThisHour = newsTimes.some(t => t.startsWith(currentHour + ':'))
 	if (!hasScheduleThisHour) return false
 
-	// Check if we already posted in the last 50 minutes to avoid duplicate posts
-	const fiftyMinutesAgo = new Date(Date.now() - 50 * 60 * 1000)
+	// Check if we already posted in the last 25 minutes to avoid duplicate posts but allow both schedule runs
+	const recentWindow = new Date(Date.now() - 25 * 60 * 1000)
 	const recentPost = await prisma.post.findFirst({
 		where: { 
 			userId: pageSetting.userId,
-			createdAt: { gte: fiftyMinutesAgo } 
+			createdAt: { gte: recentWindow } 
 		},
 		orderBy: { createdAt: 'desc' }
 	})
@@ -557,8 +561,10 @@ async function main() {
 				} else {
 					console.log(`⏰ Not a scheduled time for User [${pageSetting.userId}]. Skipping.`)
 				}
+			} else if (args.includes('--refresh-token')) {
+				console.log('🔑 Token refresh triggered — no action needed in current architecture')
 			} else {
-				console.log('⚠️ Please provide an argument: --news or --scheduled-news')
+				console.log('⚠️ Please provide an argument: --news, --scheduled-news, or --refresh-token')
 				break
 			}
 		}
