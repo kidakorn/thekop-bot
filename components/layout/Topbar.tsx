@@ -86,6 +86,19 @@ export default function Topbar({
           <span style={{ width: 6, height: 6, background: '#16a34a', borderRadius: '50%', display: 'inline-block' }} />
           Live
         </div>
+        <button 
+          onClick={handleTriggerNews}
+          disabled={triggeringNews}
+          style={{ 
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+            borderRadius: 8, background: '#10b981', color: '#fff', border: 'none',
+            fontSize: 13, fontWeight: 600, cursor: triggeringNews ? 'wait' : 'pointer',
+            marginRight: 12, opacity: triggeringNews ? 0.7 : 1
+          }}
+        >
+          <RefreshCw size={13} className={triggeringNews ? 'spin' : ''} />
+          {triggeringNews ? 'Running...' : 'Force Run News'}
+        </button>
         <button id="refresh-btn" className="btn-refresh" onClick={handleRefresh} style={{ marginRight: 12 }}>
           <RefreshCw size={13} />
           Refresh
